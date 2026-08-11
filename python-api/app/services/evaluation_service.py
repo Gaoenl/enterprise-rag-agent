@@ -183,7 +183,7 @@ class EvaluationService:
                     vector_top_k=30,
                     keyword_top_k=30,
                     fusion_top_k=20,
-                    final_top_k=8,
+                    final_top_k=15,
                     rrf_k=60,
                     vector_weight=request.vector_weight,
                     keyword_weight=request.keyword_weight,

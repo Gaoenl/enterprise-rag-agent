@@ -3,7 +3,8 @@ export type RetrievalMode = 'VECTOR' | 'KEYWORD' | 'HYBRID';
 
 /** 检索调试请求，与 Java RetrievalDebugRequest 对齐。 */
 export interface RetrievalDebugRequest {
-  knowledgeBaseId: string;
+  /** 不传则检索当前租户全部知识库。 */
+  knowledgeBaseId?: string;
   question: string;
   mode: RetrievalMode;
   enableRewrite: boolean;

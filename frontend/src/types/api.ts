@@ -84,6 +84,8 @@ export interface KnowledgeBase {
   name: string;
   description?: string;
   visibility: KnowledgeBaseVisibility;
+  /** 业务域编码，用于意图 L1 路由按域过滤知识库。 */
+  domainCode?: DomainCode;
   embeddingModelConfigId?: string;
   /** 流水线配置 JSON 对象，可能为 null（旧数据）或空对象。 */
   chunkStrategy?: PipelineConfig | null;
@@ -94,6 +96,9 @@ export interface KnowledgeBase {
   updatedAt: string;
   deleted: boolean;
 }
+
+/** 知识库业务域。 */
+export type DomainCode = 'EXPENSE' | 'HR' | 'CONTRACT' | 'POLICY' | 'GENERAL';
 export interface KnowledgeDocument {
   id: string;
   tenantId: string;

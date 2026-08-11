@@ -41,6 +41,11 @@ public class KnowledgeBase {
      */
     private String visibility;
     /**
+     * 业务域编码：EXPENSE / HR / CONTRACT / POLICY / GENERAL。
+     * 用于意图 L1 路由时按域过滤知识库。
+     */
+    private String domainCode;
+    /**
      * 默认 embedding 模型配置 ID。
      */
     private Long embeddingModelConfigId;

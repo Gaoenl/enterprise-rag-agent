@@ -15,7 +15,7 @@ class KeywordRetriever:
             self,
             keywords: list[str],
             tenant_id: int,
-            knowledge_base_id: int,
+            knowledge_base_id: int | None = None,
             top_k: int | None = None,
     ) -> list[RetrievalCandidate]:
         """执行关键词检索。"""
@@ -61,9 +61,13 @@ class KeywordRetriever:
                AND document.tenant_id = chunk.tenant_id
                AND document.deleted = false
             WHERE chunk.tenant_id = %s
-              AND chunk.knowledge_base_id = %s
               AND chunk.deleted = false
               AND ({where_expression})
+        """
+        # 未指定知识库时不按知识库过滤（全租户检索）。
+        if knowledge_base_id is not None:
+            sql += " AND chunk.knowledge_base_id = %s"
+        sql += """
             ORDER BY keyword_score DESC, chunk.id ASC
             LIMIT %s
         """
@@ -83,13 +87,15 @@ class KeywordRetriever:
         # 对应 WHERE chunk.tenant_id = %s。
         parameters.append(tenant_id)
 
-        # 对应 WHERE chunk.knowledge_base_id = %s。
-        parameters.append(knowledge_base_id)
         # WHERE 中每个关键词使用两次。
         for pattern in patterns:
             parameters.extend([pattern, pattern])
 
-        # 补充租户、知识库和 LIMIT 参数。
+        if knowledge_base_id is not None:
+            # 对应 WHERE 之后的 AND chunk.knowledge_base_id = %s。
+            parameters.append(knowledge_base_id)
+
+        # 补充 LIMIT 参数。
         parameters.append(limit)
         with get_connection() as connection:
             with connection.cursor() as cursor:

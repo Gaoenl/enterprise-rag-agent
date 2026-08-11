@@ -18,8 +18,7 @@ import lombok.Data;
 @Data
 public class RetrievalDebugRequest {
 
-    /** 需要检索的知识库 ID。 */
-    @NotNull(message = "知识库 ID 不能为空")
+    /** 需要检索的知识库 ID；不传则在当前租户全部知识库范围内检索。 */
     private Long knowledgeBaseId;
 
     /** 需要测试的用户问题。 */

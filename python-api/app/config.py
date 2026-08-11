@@ -96,6 +96,13 @@ class Settings:
     postgres_pool_timeout_seconds: int
     postgres_connect_timeout_seconds: int
     java_api_base_url: str
+    # 意图路由配置。
+    intent_vector_threshold_high: float
+    intent_vector_threshold_low: float
+    intent_default_on_low_confidence: str
+    intent_examples_file: str
+
+    intent_llm_enabled: bool
 
 
 
@@ -147,7 +154,7 @@ def get_settings() -> Settings:
             os.getenv("RETRIEVAL_KEYWORD_TOP_K", "30")
         ),
         retrieval_final_top_k=int(
-            os.getenv("RETRIEVAL_FINAL_TOP_K", "8")
+            os.getenv("RETRIEVAL_FINAL_TOP_K", "15")
         ),
         retrieval_rrf_k=int(
             os.getenv("RETRIEVAL_RRF_K", "60")
@@ -228,4 +235,19 @@ def get_settings() -> Settings:
             os.getenv("POSTGRES_CONNECT_TIMEOUT_SECONDS", "10")
         ),
         java_api_base_url=os.getenv("JAVA_API_BASE_URL", "http://localhost:8123"),
+        intent_vector_threshold_high=float(
+            os.getenv("INTENT_VECTOR_THRESHOLD_HIGH", "0.82")
+        ),
+        intent_vector_threshold_low=float(
+            os.getenv("INTENT_VECTOR_THRESHOLD_LOW", "0.68")
+        ),
+        intent_default_on_low_confidence=os.getenv(
+            "INTENT_DEFAULT_ON_LOW_CONFIDENCE", "knowledge"
+        ),
+        intent_examples_file=os.getenv(
+            "INTENT_EXAMPLES_FILE", "config/intent_examples.json"
+        ),
+        intent_llm_enabled=(
+                os.getenv("INTENT_LLM_ENABLED", "true").lower() == "true"
+        )
     )

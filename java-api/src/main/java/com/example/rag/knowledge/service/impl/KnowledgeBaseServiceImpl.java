@@ -71,6 +71,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .visibility(defaultIfBlank(request.getVisibility(), DEFAULT_VISIBILITY))
+                .domainCode(request.getDomainCode())
                 .chunkStrategy(request.getPipelineConfig() != null
                         ? request.getPipelineConfig()
                         : PipelineConfig.defaults())
@@ -144,6 +145,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         if (!isBlank(request.getVisibility())) {
             // 如果传入可见性，则更新知识库可见性。
             knowledgeBase.setVisibility(request.getVisibility());
+        }
+        if (request.getDomainCode() != null) {
+            // 更新业务域，允许显式改回 GENERAL。
+            knowledgeBase.setDomainCode(normalizeDomain(request.getDomainCode()));
         }
         if (request.getPipelineConfig() != null) {
             // 如果传入流水线配置，则替换知识库的默认配置。
@@ -227,7 +232,15 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 .eq( KnowledgeBase::getTenantId,
                         currentUserProvider.requireTenantId()));
     }
-
+    /**
+     * 归一化业务域编码：空值回退 GENERAL，统一大写。
+     */
+    private String normalizeDomain(String domainCode) {
+        if (isBlank(domainCode)) {
+            return "GENERAL";
+        }
+        return domainCode.trim().toUpperCase();
+    }
 
     private String defaultIfBlank(String value, String defaultValue) {
         return isBlank(value) ? defaultValue : value;

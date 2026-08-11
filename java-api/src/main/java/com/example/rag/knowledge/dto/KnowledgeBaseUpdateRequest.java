@@ -24,7 +24,10 @@ public class KnowledgeBaseUpdateRequest {
      * 可见性，例如 PRIVATE、TENANT。
      */
     private String visibility;
-
+    /**
+     * 业务域编码，默认 GENERAL。
+     */
+    private String domainCode;
     /**
      * 入库流水线配置（切分策略 + 向量化参数）。可选，不传不更新。
      */

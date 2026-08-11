@@ -3,14 +3,27 @@ from enum import Enum
 from pydantic import BaseModel, Field
 """问题改写、意图路由和知识库选择使用的数据模型。"""
 
-class IntentType(str, Enum):
-    """系统当前支持的用户意图。"""
+class L0Intent(str, Enum):
+    """L0 路由决策层的四类意图。"""
 
-    GENERAL_CHAT = "GENERAL_CHAT"
-    RAG_QA = "RAG_QA"
-    FOLLOW_UP = "FOLLOW_UP"
-    CLARIFY = "CLARIFY"
-    UNSUPPORTED = "UNSUPPORTED"
+    CHAT = "CHAT"                # 普通对话：不检索、不调工具
+    KNOWLEDGE = "KNOWLEDGE"      # 知识检索：进入 RAG 链路
+    TOOL = "TOOL"                # 工具调用：执行外部工具
+    CLARIFY = "CLARIFY"          # 引导澄清：信息不足，引导补充
+class IntentDomain(str, Enum):
+    """L1 业务域，用于知识库路由。"""
+
+    EXPENSE = "EXPENSE"
+    HR = "HR"
+    CONTRACT = "CONTRACT"
+    POLICY = "POLICY"
+    GENERAL = "GENERAL"
+
+class ToolRequest(BaseModel):
+    """TOOL 意图的工具调用请求。"""
+
+    tool: str = Field(..., description="工具名，如 calculator / web_search")
+    tool_input: dict = Field(default_factory=dict, description="工具入参")
 class ResolvedQuery(BaseModel):
     """多轮问题独立化结果。"""
 
@@ -20,11 +33,15 @@ class ResolvedQuery(BaseModel):
     reason: str | None = Field(default=None, description="执行或跳过改写的原因。")
 class RouteDecision(BaseModel):
     """意图路由结果。"""
-
-    intent: IntentType = Field(..., description="识别出的用户意图。")
-    need_rag: bool = Field(..., description="是否需要进入知识库检索流程。")
-    confidence: float = Field(default=1.0, ge=0, le=1, description="路由置信度。")
-    reason: str = Field(..., description="路由依据。")
+    """L0 路由决策结果。"""
+    intent: L0Intent
+    need_rag: bool
+    confidence: float
+    reason: str
+    domain: IntentDomain = IntentDomain.GENERAL
+    tool: ToolRequest | None = None
+    router_path: str = "rule"  # rule / vector / llm / fallback / inherit
+    inherit_context: bool = False  # True 表示直接继承上一轮决策
 class KnowledgeBaseCandidate(BaseModel):
     """用户当前可用的知识库候选项。"""
 

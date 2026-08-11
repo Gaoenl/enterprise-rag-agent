@@ -55,10 +55,13 @@ public class RetrievalDebugServiceImpl
         Long userId =
                 currentUserProvider.requireUserId();
 
-        // 校验知识库存在、属于当前租户并且处于启用状态。
-        knowledgeBaseService.ensureUsable(
-                request.getKnowledgeBaseId()
-        );
+        // 指定知识库时才校验其存在、属于当前租户且处于启用状态；
+        // 未指定时由 Python 在当前租户全部知识库范围内检索。
+        if (request.getKnowledgeBaseId() != null) {
+            knowledgeBaseService.ensureUsable(
+                    request.getKnowledgeBaseId()
+            );
+        }
 
         // 优先使用过滤器生成的 requestId。
         String requestId = resolveRequestId();
@@ -144,13 +147,6 @@ public class RetrievalDebugServiceImpl
             throw new ClientException(
                     BaseErrorCode.BAD_REQUEST,
                     "检索调试请求不能为空"
-            );
-        }
-
-        if (request.getKnowledgeBaseId() == null) {
-            throw new ClientException(
-                    BaseErrorCode.BAD_REQUEST,
-                    "知识库 ID 不能为空"
             );
         }
 

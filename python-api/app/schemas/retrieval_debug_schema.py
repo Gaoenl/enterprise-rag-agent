@@ -26,7 +26,11 @@ class RetrievalDebugRequest(CamelModel):
     request_id: str | None = Field(None, alias="requestId", description="请求链路 ID。")
     tenant_id: int = Field(..., alias="tenantId", description="当前租户 ID。")
     user_id: int = Field(..., alias="userId", description="当前用户 ID。")
-    knowledge_base_id: int = Field(..., alias="knowledgeBaseId", description="知识库 ID。")
+    knowledge_base_id: int | None = Field(
+        None,
+        alias="knowledgeBaseId",
+        description="知识库 ID；不传则在当前租户全部知识库范围内检索。",
+    )
     question: str = Field(..., min_length=1, max_length=4000, description="原始问题。")
     mode: RetrievalMode = Field(default=RetrievalMode.HYBRID, description="检索模式。")
     enable_rewrite: bool = Field(default=True, alias="enableRewrite")

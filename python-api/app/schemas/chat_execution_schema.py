@@ -27,3 +27,5 @@ class ChatExecutionContext(BaseModel):
 
     no_evidence: bool = False
     clarification_answer: str | None = None
+
+    tool_result: str = ""

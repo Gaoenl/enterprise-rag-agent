@@ -14,7 +14,7 @@ class PgVectorRetriever:
     def retrieve(self,
                  question: str,
                  tenant_id: int,
-                 knowledge_base_id: int,
+                 knowledge_base_id: int | None = None,
                  top_k: int | None = None)-> list[Document]:
         # 1. 解析知识库绑定的 (模型, 维度)，保证与库内向量同一空间。
         model, dimension = self._resolve_embedding_config(knowledge_base_id)
@@ -29,7 +29,7 @@ class PgVectorRetriever:
         vector_text  ="["+ ",".join([str(x) for x in query_vector])+"]"
         # 3. 控制召回数量。
         limit = top_k or self._settings.retrieval_vector_top_k
-        sql="""
+        sql = """
             SELECT
                 chunk.id,
                 chunk.document_id,
@@ -45,17 +45,23 @@ class PgVectorRetriever:
                AND document.tenant_id = chunk.tenant_id
                AND document.deleted = false
             WHERE chunk.tenant_id = %s
-              AND chunk.knowledge_base_id = %s
               AND chunk.deleted = false
               AND chunk.embedding IS NOT NULL
-              AND chunk.embedding_model = %s
-              AND chunk.embedding_dimension = %s
+        """
+        params: list[object] = [vector_text, tenant_id]
+        if knowledge_base_id is not None:
+            sql += " AND chunk.knowledge_base_id = %s"
+            sql += " AND chunk.embedding_model = %s"
+            sql += " AND chunk.embedding_dimension = %s"
+            params.extend([knowledge_base_id, model, dimension])
+        sql += """
             ORDER BY chunk.embedding <=> %s::vector
             LIMIT %s
         """
+        params.extend([vector_text, limit])
         with get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(sql, (vector_text, tenant_id, knowledge_base_id, vector_text, limit))
+                cursor.execute(sql, tuple(params))
                 rows = cursor.fetchall()
         candidates: list[RetrievalCandidate] = []
         for rank, row in enumerate(rows, start=1):
@@ -77,9 +83,15 @@ class PgVectorRetriever:
 
     def _resolve_embedding_config(
             self,
-            knowledge_base_id: int,
+            knowledge_base_id: int | None,
     ) -> tuple[str, int]:
         """读取知识库绑定 (embeddingModel, embeddingDimension)，缺失时用全局配置。"""
+        # 未指定知识库：直接使用全局默认模型与维度。
+        if knowledge_base_id is None:
+            return (
+                self._settings.embedding_model,
+                self._settings.embedding_dimension,
+            )
         sql = """
                SELECT chunk_strategy->>'embeddingModel',
                       chunk_strategy->>'embeddingDimension'

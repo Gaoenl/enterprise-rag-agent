@@ -26,6 +26,7 @@ from app.retriever.keyword_extractor import KeywordExtractor
 from app.rewriter.retrieval_query_rewriter import (
     RetrievalQueryRewriter,
 )
+from app.router.intent_router import IntentRouter
 from app.router.knowledge_base_selector import (
     KnowledgeBaseSelector,
 )
@@ -39,10 +40,11 @@ from app.schemas.chat_schema import (
     ChatHistoryMessage,
     ChatRequest,
 )
-from app.schemas.routing_schema import ResolvedQuery
+from app.schemas.routing_schema import ResolvedQuery, RouteDecision, L0Intent
 from app.schemas.trace_schema import TokenUsage
 from app.services.rerank_service import RerankService
 from app.streaming.sse_encoder import SseEncoder
+from app.tools.registry import is_registered, execute
 from app.trace.trace_recorder import TraceRecorder
 
 logger = logging.getLogger(__name__)
@@ -72,6 +74,7 @@ class ChatExecutionContext:
 
     no_evidence: bool = False
     clarification_answer: str | None = None
+    tool_result: str = ""
 
 
 class ChatService:
@@ -90,8 +93,8 @@ class ChatService:
             chat_model
         )
 
-        # 判断问题是否需要进入 RAG。
-        self._query_router = QueryRouter()
+        # 统一意图路由入口：规则 → 向量 → 兜底（后续接入 LLM）。
+        self._query_router = IntentRouter()
 
         # 在当前租户范围内选择知识库。
         self._knowledge_base_selector = (
@@ -120,6 +123,8 @@ class ChatService:
 
         # 将流式事件编码为 SSE 文本。
         self._sse_encoder = SseEncoder()
+        # 多轮追问时继承的上一轮路由决策（按会话维度，单实例共享可接受）。
+        self._last_route: RouteDecision | None = None
 
 
     def answer(self, request: ChatRequest) -> ChatData:
@@ -175,6 +180,7 @@ class ChatService:
                         history=execution.history,
                         context=execution.context,
                         rag_mode=execution.need_rag,
+                        tool_result=execution.tool_result,
                     )
 
                     raw_answer = llm_result.answer
@@ -300,7 +306,6 @@ class ChatService:
             else:
                 answer_parts: list[str] = []
                 token_usage = TokenUsage()
-
                 with recorder.node(
                     "LLM_GENERATE",
                     {
@@ -314,6 +319,7 @@ class ChatService:
                         history=execution.history,
                         context=execution.context,
                         rag_mode=execution.need_rag,
+                        tool_result=execution.tool_result,
                     ):
                         # 文本分片立即发送给 Java。
                         if chunk.content:
@@ -326,8 +332,8 @@ class ChatService:
                         # 最后一个分片可能包含 Token 用量。
                         if chunk.token_usage.total_tokens > 0:
                             token_usage = chunk.token_usage
-                            if chunk.model:
-                                model=chunk.model
+                        if chunk.model:
+                            model = chunk.model
 
                     # 拼接完整原始答案。
                     raw_answer = "".join(answer_parts)
@@ -447,23 +453,96 @@ class ChatService:
 
         # 判断当前问题是否需要使用 RAG。
         with recorder.node("QUERY_ROUTE") as node:
-            route = self._query_router.route(
-                query=resolved_query.standalone_query,
-                history=request.history,
-                preferred_knowledge_base_id=(
-                    request.knowledge_base_id
-                ),
-            )
+            if resolved_query.rewritten and self._last_route is not None:
+                route=self._last_route.model_copy(
+                    update={
+                        "inherit_context": True,
+                        "router_path": "inherit",
+                        "reason": "多轮追问，继承上一轮意图。",
+                    }
+
+                )
+            else:
+                route = self._query_router.route(
+                    query=resolved_query.standalone_query,
+                    history=request.history,
+                    preferred_knowledge_base_id=(
+                        request.knowledge_base_id
+                    ),
+                )
+                self._last_route = route
 
             node.set_output(
                 {
                     "intent": route.intent.value,
+                    "domain": route.domain.value,
                     "needRag": route.need_rag,
                     "confidence": route.confidence,
                     "reason": route.reason,
+                    "routerPath": route.router_path,
+                    "inheritContext": route.inherit_context,
                 }
             )
 
+        # TOOL 意图：执行工具，结果作为上下文喂给 LLM，不检索知识库。
+        if route.intent == L0Intent.TOOL:
+            # 工具缺失或未注册时引导澄清，不让请求失败。
+            if route.tool is None or not is_registered(route.tool.tool):
+                return ChatExecutionContext(
+                    question=request.question,
+                    standalone_query=(
+                        resolved_query.standalone_query
+                    ),
+                    model=model,
+                    history=request.history,
+                    intent="CLARIFY",
+                    need_rag=False,
+                    route_reason=route.reason,
+                    clarification_answer=(
+                        "当前请求需要调用工具，但该工具尚未开通，"
+                        "请稍后再试或换一种问法。"
+                    ),
+                )
+                # 记录工具执行过程。
+                # 记录工具执行过程。
+            with recorder.node(
+                    "TOOL_EXECUTE",
+                    {
+                        "tool": route.tool.tool,
+                        "input": str(route.tool.tool_input)[:500],
+                    },
+            ) as node:
+                try:
+                    tool_result = execute(
+                        route.tool.tool,
+                        route.tool.tool_input,
+                    )
+                except Exception as exception:
+                    node.set_output(
+                        {"error": str(exception)[:500]}
+                    )
+                    logger.exception(
+                        "工具执行失败, tool=%s",
+                        route.tool.tool,
+                    )
+                    return ChatExecutionContext(
+                        question=request.question,
+                        standalone_query=(
+                            resolved_query.standalone_query
+                        ),
+                        model=model,
+                        history=request.history,
+                        intent="CLARIFY",
+                        need_rag=False,
+                        route_reason=route.reason,
+                        clarification_answer=(
+                            f"工具执行失败：{exception}，"
+                            "请稍后再试或换一种问法。"
+                        ),
+                    )
+                node.set_output(
+                    {"resultChars": len(tool_result)}
+                )
         # 普通对话直接进入 LLM。
         if not route.need_rag:
             return ChatExecutionContext(
@@ -490,6 +569,7 @@ class ChatService:
                         request.knowledge_base_id
                     ),
                     query=resolved_query.standalone_query,
+                    domain=route.domain.value,
                 )
             )
 

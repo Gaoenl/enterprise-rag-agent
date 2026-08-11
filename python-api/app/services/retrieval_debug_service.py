@@ -107,6 +107,12 @@ class RetrievalDebugService:
         warnings: list[str] = []
         degraded = False
 
+        if request.knowledge_base_id is None:
+            warnings.append(
+                "未指定知识库，已在当前租户全部知识库范围内检索；"
+                "跨库向量可能由不同模型生成，向量检索结果仅供参考。"
+            )
+
         # 1. 将原始问题转换成语义查询和关键词。
         started = perf_counter()
         retrieval_query = self._rewrite_query(

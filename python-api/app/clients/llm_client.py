@@ -108,7 +108,13 @@ class LlmClient:
         # 使用 LangChain LCEL 连接 Prompt 和聊天模型。
         self._chain = self._prompt | self._chat_model
 
-    def chat(self, question: str, model: str,history: list[ChatHistoryMessage], context: str="",rag_mode: bool = False,) -> LlmResult:
+    def chat(self, question: str,
+             model: str,
+             history: list[ChatHistoryMessage],
+             context: str="",
+             rag_mode: bool = False,
+             tool_result: str = "",
+             ) -> LlmResult:
         """根据问题、历史和知识库上下文生成回答。"""
         normalized_question = question.strip()
 
@@ -138,6 +144,7 @@ class LlmClient:
             question=normalized_question,
             context=context,
             rag_mode=rag_mode,
+            tool_result=tool_result,
         )
         try:
             # Prompt -> ChatModel。
@@ -163,7 +170,7 @@ class LlmClient:
             else str(content)
         )
         actual_model = response.response_metadata.get("model_name", self._settings.llm_model)
-        model,token_usage = self._extract_token_usage(
+        token_usage = self._extract_token_usage(
             response
         )
         return LlmResult(
@@ -179,6 +186,7 @@ class LlmClient:
             history: list[ChatHistoryMessage],
             context: str = "",
             rag_mode: bool = False,
+            tool_result: str = "",
     ) -> Iterator[LlmStreamChunk]:
         """以流式方式生成聊天回答。
 
@@ -220,6 +228,7 @@ class LlmClient:
             question=normalized_question,
             context=context,
             rag_mode=rag_mode,
+            tool_result=tool_result,
         )
 
         # 组装 LangChain Chain 的输入参数。
@@ -305,14 +314,21 @@ class LlmClient:
             question: str,
             context: str,
             rag_mode: bool,
+            tool_result: str = "",
     ) -> str:
         """构建当前轮用户消息。"""
         if not rag_mode:
-            return (
-                f"用户问题：\n{question}\n\n"
-                "本次请求未使用企业知识库，"
-                "请基于通用知识回答。"
-            )
+            base = f"用户问题：\n{question}\n\n"
+            if tool_result:
+                return (
+                        base
+                        + "以下是工具执行结果，请基于该结果回答：\n\n"
+                          "<tool_result>\n"
+                          f"{tool_result}\n"
+                          "</tool_result>\n\n"
+                          "如果结果无法回答用户问题，请如实说明。"
+                )
+            return base + "本次请求未使用企业知识库，请基于通用知识回答。"
 
         # 对可能与上下文边界冲突的文本进行替换。
         safe_context = LlmClient._sanitize_context(

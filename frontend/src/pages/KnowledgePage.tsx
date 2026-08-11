@@ -5,7 +5,7 @@ import { DeleteOutlined, EditOutlined, PlusOutlined, RightOutlined } from '@ant-
 import { useNavigate } from 'react-router-dom';
 import { kbApi, modelApi } from '../api/modules';
 import { PageHeader } from '../components/PageHeader';
-import type { KnowledgeBase, ModelConfig, PipelineConfig } from '../types/api';
+import type { DomainCode, KnowledgeBase, ModelConfig, PipelineConfig } from '../types/api';
 
 const CHUNKER_OPTIONS = [
   { value: 'recursive', label: '递归切分' },
@@ -15,6 +15,14 @@ const CHUNKER_OPTIONS = [
 
 // 数据库 kb_document_chunk.embedding 列维度（pgvector 固定维度）。
 const DB_EMBEDDING_DIMENSION = 1536;
+
+const DOMAIN_OPTIONS: { value: DomainCode; label: string }[] = [
+  { value: 'EXPENSE', label: '报销' },
+  { value: 'HR', label: '人事' },
+  { value: 'CONTRACT', label: '合同' },
+  { value: 'POLICY', label: '制度' },
+  { value: 'GENERAL', label: '通用' },
+];
 
 /** 从模型配置解析支持的维度，兼容 {"dimensions":[...]} 与 {"dimension":N}。 */
 function parseDimensions(model: ModelConfig): number[] {
@@ -34,6 +42,7 @@ function parseDimensions(model: ModelConfig): number[] {
 }
 
 type FormValue = Pick<KnowledgeBase, 'name' | 'description' | 'visibility'> & {
+  domainCode: DomainCode;
   chunkType: string;
   chunkSize: number;
   chunkOverlap: number;
@@ -134,6 +143,7 @@ export function KnowledgePage() {
       name: '',
       description: '',
       visibility: 'PRIVATE',
+      domainCode: 'GENERAL',
       ...item,
       ...fromPipelineConfig(item?.chunkStrategy),
     });
@@ -197,6 +207,11 @@ export function KnowledgePage() {
             render: (v) => <Tag color={v === 'PRIVATE' ? 'blue' : 'green'}>{v}</Tag>,
           },
           {
+            title: '业务域',
+            dataIndex: 'domainCode',
+            render: (v: DomainCode) => <Tag>{v ?? 'GENERAL'}</Tag>,
+          },
+          {
             title: '文档数',
             dataIndex: 'documentCount',
             width: 100,
@@ -247,6 +262,9 @@ export function KnowledgePage() {
                 { value: 'TENANT', label: '租户可见' },
               ]}
             />
+          </Form.Item>
+          <Form.Item name="domainCode" label="业务域" rules={[{ required: true }]}>
+            <Select options={DOMAIN_OPTIONS} />
           </Form.Item>
           <Collapse
             ghost

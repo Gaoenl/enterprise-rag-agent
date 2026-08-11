@@ -16,6 +16,7 @@ class KnowledgeBaseSelector:
         user_id: int | None,
         preferred_knowledge_base_id: int | None,
         query: str,
+        domain: str | None = None,
     ) -> KnowledgeBaseSelection:
         """为当前 RAG 请求选择一个知识库。"""
         if tenant_id is None:
@@ -26,13 +27,12 @@ class KnowledgeBaseSelector:
                 reason="RAG 查询缺少 tenantId，无法保证租户隔离。",
             )
 
-        # 用户明确指定知识库时，只校验该知识库，不自动替换。
+        # 用户明确指定知识库时，只校验该知识库，不按域过滤、不自动替换。
         if preferred_knowledge_base_id is not None:
             candidate = self._find_specified_knowledge_base(
                 tenant_id=tenant_id,
                 knowledge_base_id=preferred_knowledge_base_id,
             )
-
             if candidate is None:
                 return KnowledgeBaseSelection(
                     selection_type="INVALID_SPECIFIED",
@@ -40,7 +40,6 @@ class KnowledgeBaseSelector:
                     need_clarification=True,
                     reason="指定知识库不存在、已禁用或不属于当前租户。",
                 )
-
             return KnowledgeBaseSelection(
                 knowledge_base_id=candidate.id,
                 selection_type="USER_SPECIFIED",
@@ -50,8 +49,23 @@ class KnowledgeBaseSelector:
                 candidates=[candidate],
             )
 
-        # 查询当前租户可用的知识库。
-        candidates = self._find_tenant_knowledge_bases(tenant_id)
+        # 自动选择：按业务域过滤候选。
+        domain_code = (domain or "GENERAL").upper()
+        candidates = self._find_tenant_knowledge_bases(
+            tenant_id, domain_code
+        )
+
+        # 域内没有知识库时，降级到 GENERAL 域。
+        if not candidates and domain_code != "GENERAL":
+            candidates = self._find_tenant_knowledge_bases(
+                tenant_id, "GENERAL"
+            )
+
+        # GENERAL 域仍为空时，回退到租户全部可用知识库。
+        if not candidates:
+            candidates = self._find_tenant_knowledge_bases(
+                tenant_id, None
+            )
 
         if not candidates:
             return KnowledgeBaseSelection(
@@ -103,12 +117,13 @@ class KnowledgeBaseSelector:
             candidates=candidates,
         )
 
+
     @staticmethod
     def _find_specified_knowledge_base(
         tenant_id: int,
         knowledge_base_id: int,
     ) -> KnowledgeBaseCandidate | None:
-        """校验指定知识库是否属于当前租户。"""
+        """校验指定知识库是否属于当前租户，返回单个候选或 None。"""
         sql = """
             SELECT id, name, description
             FROM kb_knowledge_base
@@ -136,20 +151,31 @@ class KnowledgeBaseSelector:
     @staticmethod
     def _find_tenant_knowledge_bases(
         tenant_id: int,
+        domain_code: str | None,
     ) -> list[KnowledgeBaseCandidate]:
-        """查询当前租户下可使用的知识库。"""
+        """查询当前租户下可使用的知识库。
+
+        domain_code 为 None 时不按域过滤（回退全部）；
+        否则精确匹配该业务域。
+        """
         sql = """
             SELECT id, name, description
             FROM kb_knowledge_base
             WHERE tenant_id = %s
               AND deleted = false
               AND status = 1
-            ORDER BY updated_at DESC
         """
+        params: list[object] = [tenant_id]
+
+        if domain_code is not None:
+            sql += " AND domain_code = %s"
+            params.append(domain_code)
+
+        sql += " ORDER BY updated_at DESC"
 
         with get_connection() as connection:
             with connection.cursor() as cursor:
-                cursor.execute(sql, (tenant_id,))
+                cursor.execute(sql, tuple(params))
                 rows = cursor.fetchall()
 
         return [

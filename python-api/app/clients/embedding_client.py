@@ -74,7 +74,7 @@ class EmbeddingClient:
                 detail=f"Call LangChain embedding model failed: {exc}",
             ) from exc
 
-        self._validate_vectors(vectors, len(texts))
+        self._validate_vectors(vectors, len(texts),effective_dimension)
         return vectors
 
     def embed_query(
@@ -101,7 +101,7 @@ class EmbeddingClient:
                 detail=f"Call LangChain query embedding failed: {exc}",
             ) from exc
 
-        self._validate_vector(vector)
+        self._validate_vector(vector,effective_dimension)
         return vector
 
     def _validate_vectors(

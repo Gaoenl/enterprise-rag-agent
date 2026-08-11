@@ -104,10 +104,10 @@ export function RetrievalDebugPage(
             mode: 'HYBRID',
             enableRewrite: true,
             enableRerank: true,
-            vectorTopK: 10,
-            keywordTopK: 10,
-            fusionTopK: 10,
-            finalTopK: 5,
+            vectorTopK: 30,
+            keywordTopK: 30,
+            fusionTopK: 20,
+            finalTopK: 15,
             rrfK: 60,
             vectorWeight: 1,
             keywordWeight: 1,
@@ -118,13 +118,13 @@ export function RetrievalDebugPage(
             <Col span={10}>
               <Form.Item
                 name="knowledgeBaseId"
-                label="知识库"
-                rules={[{ required: true, message: '请选择知识库' }]}
+                label="知识库（不选则检索全部）"
               >
                 <Select
                   showSearch
+                  allowClear
                   optionFilterProp="label"
-                  placeholder="选择需要调试的知识库"
+                  placeholder="不选择则检索当前租户全部知识库"
                   loading={knowledgeBases.isLoading}
                   options={knowledgeBases.data?.records.map((item) => ({
                     value: item.id,
