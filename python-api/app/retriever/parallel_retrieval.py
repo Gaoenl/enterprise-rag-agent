@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Callable
 
+from sqlalchemy.testing import future
+
 from app.schemas.retrieval_schema import RetrievalCandidate
 
 
@@ -19,7 +21,7 @@ class RetrievalBranchResult:
 
 # 多个请求共享线程池，避免每次检索都创建和销毁线程。
 _executor = ThreadPoolExecutor(
-    max_workers=4,
+    max_workers=8,
     thread_name_prefix="rag-retrieval",
 )
 
@@ -28,19 +30,20 @@ def run_parallel_retrieval(
     vector_call: Callable[[], list[RetrievalCandidate]],
     keyword_call: Callable[[], list[RetrievalCandidate]],
 ) -> tuple[RetrievalBranchResult, RetrievalBranchResult]:
-    """并行执行向量检索和关键词检索。"""
-    vector_future = _executor.submit(
-        _execute_safely,
-        vector_call,
+    """兼容原两路接口：并行执行向量与关键词检索。"""
+    vector, keyword = run_parallel_calls(
+        [vector_call, keyword_call]
     )
-    keyword_future = _executor.submit(
-        _execute_safely,
-        keyword_call,
-    )
-
-    # 两个任务提交后已经并行运行，按顺序取结果不会变回串行。
-    return vector_future.result(), keyword_future.result()
-
+    return vector, keyword
+def run_parallel_calls(
+    calls: list[Callable[[], list[RetrievalCandidate]]],
+) -> list[RetrievalBranchResult]:
+    """并行执行任意数量检索调用，按传入顺序返回结果。"""
+    futures = [
+        _executor.submit(_execute_safely, call)
+        for call in calls
+    ]
+    return [future.result() for future in futures]
 
 def _execute_safely(
     retrieval_call: Callable[[], list[RetrievalCandidate]],

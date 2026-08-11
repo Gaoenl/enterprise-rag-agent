@@ -1,6 +1,7 @@
 package com.example.rag.retrieval.controller;
 
 import com.example.rag.common.api.ApiResult;
+import com.example.rag.retrieval.dto.RetrievalConfigResponse;
 import com.example.rag.retrieval.dto.RetrievalDebugRequest;
 import com.example.rag.retrieval.dto.RetrievalDebugResponse;
 import com.example.rag.retrieval.service.RetrievalDebugService;
@@ -10,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -46,5 +48,15 @@ public class RetrievalDebugController {
                 retrievalDebugService.debug(request);
 
         return ApiResult.ok(response);
+    }
+
+    /**
+     * 获取检索调试默认参数。
+     */
+    @GetMapping("/config")
+    public ApiResult<RetrievalConfigResponse> getConfig() {
+        return ApiResult.ok(
+                retrievalDebugService.getConfig()
+        );
     }
 }

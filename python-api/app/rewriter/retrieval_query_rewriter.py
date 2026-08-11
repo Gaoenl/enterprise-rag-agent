@@ -116,9 +116,43 @@ class RetrievalQueryRewriter:
 
         ## 三、alternative_queries
 
-        当前固定返回空列表：
+        用于多查询召回（Multi-Query Retrieval）：
 
-        []
+        1. 当用户问题存在多个理解角度或可拆分的子主题时，
+           生成 2～3 个覆盖不同角度的独立检索查询；
+        2. 角度示例：按“过程 / 时长 / 结果 / 政策 / 条件”拆分；
+        3. 每个子查询必须是可独立检索的问题或短语，
+           不得包含“查询 / 检索 / 知识库”等动作词；
+        4. 保持原文用语，不做同义改写；
+        5. 单主题问题返回空列表 []。
+
+        示例：
+        用户问题：退款需要多久
+        alternative_queries：
+        ["退款审核需要多久", "退款到账需要几天", "退款政策是什么"]
+
+        用户问题：你好
+        alternative_queries：[]
+
+        ## 四、synonym_keywords
+
+        为 keywords 中的每个关键词生成 1～2 个真实同义/近义变体，
+        用于扩大关键词检索覆盖面：
+
+        1. 必须与原文语义等价，允许领域习惯说法
+           （如「差旅」→「出差」、「报销」→「费用报销」）；
+        2. 不得生成泛化到无关语义的词；
+        3. 与 keywords 内容去重，总数不超过 6 个；
+        4. 单义、无常见变体的关键词可以不给变体；
+        5. 无法给出任何同义词时返回空列表 []。
+
+        示例：
+        用户问题：差旅费能报多少
+        keywords：["差旅", "报销"]
+        synonym_keywords：["出差", "费用报销", "费用"]
+
+        用户问题：你好
+        synonym_keywords：[]
 
         最终只返回符合结构定义的数据。
         """,
@@ -150,16 +184,33 @@ class RetrievalQueryRewriter:
                 keywords = self._keyword_extractor.extract(
                     normalized_query
                 )
+            # 模型生成的关键词同义变体；为空时用本地词典兜底。
+            synonym_keywords = self._keyword_extractor.normalize(
+                result.synonym_keywords
+            )
+            if not synonym_keywords:
+                synonym_keywords = (
+                    self._keyword_extractor.expand_synonyms(
+                        keywords
+                    )
+                )
             return RetrievalQuery(
                 semantic_query=result.semantic_query.strip() or normalized_query,
                 keywords=keywords,
+                synonym_keywords=synonym_keywords,
                 alternative_queries=result.alternative_queries)
         except Exception:
             # 模型调用失败时使用简单规则提取关键词。
+            keywords = self._keyword_extractor.extract(
+                normalized_query
+            )
             return RetrievalQuery(
                 semantic_query=normalized_query,
-                keywords=self._keyword_extractor.extract(
-                    normalized_query
+                keywords=keywords,
+                synonym_keywords=(
+                    self._keyword_extractor.expand_synonyms(
+                        keywords
+                    )
                 ),
                 alternative_queries=[],
             )

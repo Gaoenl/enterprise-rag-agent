@@ -4,8 +4,10 @@ from functools import lru_cache
 
 from fastapi import APIRouter, Depends
 
+from app.config import get_settings
 from app.core.response import ApiResult
 from app.schemas.retrieval_debug_schema import (
+    RetrievalConfigData,
     RetrievalDebugData,
     RetrievalDebugRequest,
 )
@@ -54,3 +56,33 @@ def debug_retrieval(
     data = service.debug(request)
 
     return ApiResult.ok(data)
+
+
+@router.get(
+    "/config",
+    response_model=ApiResult[RetrievalConfigData],
+    response_model_by_alias=True,
+)
+def get_retrieval_config() -> ApiResult[RetrievalConfigData]:
+    """返回检索调试默认参数，供前端按服务端配置初始化表单。"""
+    settings = get_settings()
+    return ApiResult.ok(
+        RetrievalConfigData(
+            vector_top_k=settings.retrieval_vector_top_k,
+            keyword_top_k=settings.retrieval_keyword_top_k,
+            fusion_top_k=settings.retrieval_fusion_top_k,
+            final_top_k=settings.retrieval_final_top_k,
+            rrf_k=settings.retrieval_rrf_k,
+            vector_weight=settings.retrieval_vector_weight,
+            keyword_weight=settings.retrieval_keyword_weight,
+            multi_query_enabled=(
+                settings.retrieval_multi_query_enabled
+            ),
+            multi_query_top_k=(
+                settings.retrieval_multi_query_top_k
+            ),
+            synonym_expansion_enabled=(
+                settings.retrieval_synonym_expansion_enabled
+            ),
+        )
+    )

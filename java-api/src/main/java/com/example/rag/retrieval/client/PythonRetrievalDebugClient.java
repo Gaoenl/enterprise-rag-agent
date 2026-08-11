@@ -5,8 +5,10 @@ import com.example.rag.common.error.RemoteException;
 import com.example.rag.embedding.config.EmbeddingClientProperties;
 import com.example.rag.retrieval.client.dto.PythonRetrievalDebugRequest;
 import com.example.rag.retrieval.client.dto.PythonRetrievalDebugResponse;
+import com.example.rag.retrieval.dto.RetrievalConfigResponse;
 import com.example.rag.retrieval.dto.RetrievalDebugResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -209,5 +211,77 @@ public class PythonRetrievalDebugClient {
                 ? value
                 : value.substring(0, maxLength)
                 + "...[truncated]";
+        }
+
+    /**
+     * 获取 Python 检索调试默认配置。
+     *
+     * @return 前端初始化表单用的检索参数
+     */
+    public RetrievalConfigResponse getConfig() {
+        try {
+            String url = properties.getPythonBaseUrl()
+                    + "/api/retrieval/config";
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .timeout(Duration.ofSeconds(
+                            properties.getTimeoutSeconds()
+                    ))
+                    .header("Accept", "application/json")
+                    .GET()
+                    .build();
+
+            HttpResponse<String> httpResponse = httpClient.send(
+                    httpRequest,
+                    HttpResponse.BodyHandlers.ofString(
+                            StandardCharsets.UTF_8
+                    )
+            );
+
+            if (
+                    httpResponse.statusCode() < 200
+                            || httpResponse.statusCode() >= 300
+            ) {
+                log.error(
+                        "调用 Python 检索配置接口失败, "
+                                + "status={}, body={}",
+                        httpResponse.statusCode(),
+                        abbreviate(httpResponse.body())
+                );
+
+                throw new RemoteException(
+                        BaseErrorCode.REMOTE_ERROR,
+                        "Python 检索配置接口调用失败"
+                );
+            }
+
+            JsonNode root = objectMapper.readTree(
+                    httpResponse.body()
+            );
+            JsonNode data = root.path("data");
+
+            if (data.isMissingNode() || data.isNull()) {
+                throw new RemoteException(
+                        BaseErrorCode.REMOTE_ERROR,
+                        "Python 检索配置接口返回为空"
+                );
+            }
+
+            return objectMapper.treeToValue(
+                    data,
+                    RetrievalConfigResponse.class
+            );
+        } catch (RemoteException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            log.error("调用 Python 检索配置接口异常", exception);
+            throw new RemoteException(
+                    BaseErrorCode.REMOTE_ERROR,
+                    "Python 检索配置接口调用异常",
+                    exception
+            );
+        }
     }
 }

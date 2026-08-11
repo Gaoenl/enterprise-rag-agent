@@ -35,6 +35,11 @@ class RetrievalDebugRequest(CamelModel):
     mode: RetrievalMode = Field(default=RetrievalMode.HYBRID, description="检索模式。")
     enable_rewrite: bool = Field(default=True, alias="enableRewrite")
     enable_rerank: bool = Field(default=True, alias="enableRerank")
+    enable_multi_query: bool = Field(
+        default=True,
+        alias="enableMultiQuery",
+        description="是否启用多查询召回（宽泛问题拆子查询）。",
+    )
     vector_top_k: int | None = Field(None, alias="vectorTopK", ge=1, le=100)
     keyword_top_k: int | None = Field(None, alias="keywordTopK", ge=1, le=100)
     fusion_top_k: int | None = Field(None, alias="fusionTopK", ge=1, le=100)
@@ -88,12 +93,39 @@ class RetrievalTimingData(CamelModel):
     total_millis: int = Field(default=0, alias="totalMillis")
 
 
+class RetrievalConfigData(CamelModel):
+    """检索调试默认参数（来自 Python 服务端配置），供前端初始化表单。"""
+
+    vector_top_k: int = Field(alias="vectorTopK")
+    keyword_top_k: int = Field(alias="keywordTopK")
+    fusion_top_k: int = Field(alias="fusionTopK")
+    final_top_k: int = Field(alias="finalTopK")
+    rrf_k: int = Field(alias="rrfK")
+    vector_weight: float = Field(alias="vectorWeight")
+    keyword_weight: float = Field(alias="keywordWeight")
+    multi_query_enabled: bool = Field(alias="multiQueryEnabled")
+    multi_query_top_k: int = Field(alias="multiQueryTopK")
+    synonym_expansion_enabled: bool = Field(
+        alias="synonymExpansionEnabled"
+    )
+
+
 class RetrievalDebugData(CamelModel):
     """检索调试接口完整响应数据。"""
 
     original_query: str = Field(..., alias="originalQuery")
     semantic_query: str = Field(..., alias="semanticQuery")
     keywords: list[str] = Field(default_factory=list)
+    alternative_queries: list[str] = Field(
+        default_factory=list,
+        alias="alternativeQueries",
+        description="多查询召回的子查询列表。",
+    )
+    vector_merged_count: int = Field(
+        default=0,
+        alias="vectorMergedCount",
+        description="多路向量候选合并去重后的数量。",
+    )
     mode: RetrievalMode
     rewrite_applied: bool = Field(False, alias="rewriteApplied")
     rerank_applied: bool = Field(False, alias="rerankApplied")

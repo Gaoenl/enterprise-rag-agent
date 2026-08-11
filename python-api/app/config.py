@@ -69,6 +69,12 @@ class Settings:
     retrieval_vector_weight: float
     retrieval_keyword_weight: float
     retrieval_enable_keyword: bool
+    # 多查询召回配置。
+    retrieval_multi_query_enabled: bool
+    retrieval_multi_query_top_k: int
+    retrieval_dedup_content_hash: bool
+    retrieval_synonym_expansion_enabled: bool
+    retrieval_synonym_file: str
 
     # Rerank 精排配置。
     retrieval_fusion_top_k: int
@@ -171,6 +177,28 @@ def get_settings() -> Settings:
         ),
         retrieval_fusion_top_k=int(
             os.getenv("RETRIEVAL_FUSION_TOP_K", "20")
+        ),
+        retrieval_multi_query_enabled=(
+                os.getenv("RETRIEVAL_MULTI_QUERY_ENABLED", "true").lower()
+                == "true"
+        ),
+        retrieval_multi_query_top_k=int(
+            os.getenv("RETRIEVAL_MULTI_QUERY_TOP_K", "20")
+        ),
+        retrieval_dedup_content_hash=(
+            os.getenv("RETRIEVAL_DEDUP_CONTENT_HASH", "true").lower()
+            == "true"
+        ),
+        retrieval_synonym_expansion_enabled=(
+            os.getenv(
+                "RETRIEVAL_SYNONYM_EXPANSION_ENABLED",
+                "true",
+            ).lower()
+            == "true"
+        ),
+        retrieval_synonym_file=os.getenv(
+            "RETRIEVAL_SYNONYM_FILE",
+            "config/synonyms.json",
         ),
 
         rerank_enabled=(

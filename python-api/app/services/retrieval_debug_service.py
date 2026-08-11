@@ -1,7 +1,6 @@
 
 """检索调试业务服务。"""
 
-import re
 from time import perf_counter
 
 from fastapi import HTTPException
@@ -10,6 +9,7 @@ from langchain_core.documents import Document
 from app.config import get_settings
 from app.context.context_packer import ContextPacker
 from app.factories.chat_model_factory import get_chat_model
+from app.retriever.hybrid_retriever import HybridRetriever
 from app.retriever.keyword_extractor import KeywordExtractor
 from app.retriever.keyword_retriever import KeywordRetriever
 from app.retriever.pgvector_retriever import PgVectorRetriever
@@ -26,9 +26,9 @@ from app.schemas.retrieval_debug_schema import (
 from app.schemas.retrieval_schema import RetrievalCandidate
 from app.schemas.routing_schema import RetrievalQuery
 from app.services.rerank_service import RerankService
-from app.retriever.parallel_retrieval import (
-    run_parallel_retrieval,
-)
+from app.retriever.parallel_retrieval import run_parallel_retrieval, run_parallel_calls
+
+
 class RetrievalDebugService:
     """执行完整检索流程，但不调用 LLM 生成答案。"""
 
@@ -120,46 +120,103 @@ class RetrievalDebugService:
             enabled=request.enable_rewrite,
         )
         timings.rewrite_millis = self._elapsed_millis(started)
-
+        # 多查询开关：请求允许 && 服务端启用。
+        multi_query = (
+                request.enable_multi_query
+                and self._settings.retrieval_multi_query_enabled
+        )
+        alternative_queries = (
+            retrieval_query.alternative_queries
+            if self._settings.retrieval_multi_query_enabled
+            else []
+        )
+        # 合并模型生成的关键词同义变体（去重后用于关键词检索）。
+        keywords = RetrievalDebugService._merge_keywords(
+            retrieval_query
+        )
+        # 多查询时每个子查询单独向量召回的数量。
+        effective_vector_top_k = (
+            self._settings.retrieval_multi_query_top_k
+            if len([retrieval_query.semantic_query, *alternative_queries]) > 1
+            else vector_top_k
+        )
         vector_candidates: list[RetrievalCandidate] = []
         keyword_candidates: list[RetrievalCandidate] = []
         vector_error: Exception | None = None
         keyword_error: Exception | None = None
 
         if request.mode == RetrievalMode.HYBRID:
-            # 混合模式下并行执行两路检索。
-            vector_result, keyword_result = run_parallel_retrieval(
-                vector_call=lambda: self._vector_retriever.retrieve(
-                    question=retrieval_query.semantic_query,
+            # 多路向量并行（主查询 + 子查询），关键词一路并行。
+            queries = [
+                retrieval_query.semantic_query,
+                *alternative_queries,
+            ]
+            vector_calls = [
+                lambda q=q: self._vector_retriever.retrieve(
+                    question=q,
                     tenant_id=request.tenant_id,
                     knowledge_base_id=request.knowledge_base_id,
-                    top_k=vector_top_k,
-                ),
-                keyword_call=lambda: self._keyword_retriever.retrieve(
-                    keywords=retrieval_query.keywords,
-                    tenant_id=request.tenant_id,
-                    knowledge_base_id=request.knowledge_base_id,
-                    top_k=keyword_top_k,
-                ),
+                    top_k=effective_vector_top_k,
+                )
+                for q in queries
+            ]
+            keyword_call = lambda: self._keyword_retriever.retrieve(
+                keywords=keywords,
+                tenant_id=request.tenant_id,
+                knowledge_base_id=request.knowledge_base_id,
+                top_k=keyword_top_k,
             )
-
-            # 提取两路结果、异常和独立耗时。
-            vector_candidates = vector_result.candidates
+            vector_results = run_parallel_calls(vector_calls)
+            keyword_result = run_parallel_calls([keyword_call])[0]
+            # 合并多路向量候选：chunk_id + 内容哈希去重。
+            vector_candidates = (
+                HybridRetriever._merge_vector_candidates(
+                    vector_results
+                )
+            )
             keyword_candidates = keyword_result.candidates
-            vector_error = vector_result.error
+            vector_error = HybridRetriever._first_vector_error(
+                vector_results
+            )
             keyword_error = keyword_result.error
-            timings.vector_millis = vector_result.elapsed_millis
-            timings.keyword_millis = keyword_result.elapsed_millis
+            timings.vector_millis = sum(
+                result.elapsed_millis
+                for result in vector_results
+            )
+            timings.keyword_millis = (
+                keyword_result.elapsed_millis
+            )
 
         elif request.mode == RetrievalMode.VECTOR:
             started = perf_counter()
 
             try:
-                vector_candidates = self._vector_retriever.retrieve(
-                    question=retrieval_query.semantic_query,
-                    tenant_id=request.tenant_id,
-                    knowledge_base_id=request.knowledge_base_id,
-                    top_k=vector_top_k,
+                queries = [
+                    retrieval_query.semantic_query,
+                    *alternative_queries,
+                ]
+                vector_results = run_parallel_calls(
+                    [
+                        lambda q=q: self._vector_retriever.retrieve(
+                            question=q,
+                            tenant_id=request.tenant_id,
+                            knowledge_base_id=(
+                                request.knowledge_base_id
+                            ),
+                            top_k=effective_vector_top_k,
+                        )
+                        for q in queries
+                    ]
+                )
+                vector_candidates = (
+                    HybridRetriever.merge_vector_candidates(
+                        vector_results
+                    )
+                )
+                vector_error = (
+                    HybridRetriever.first_vector_error(
+                        vector_results
+                    )
                 )
             except Exception as exception:
                 vector_error = exception
@@ -171,7 +228,7 @@ class RetrievalDebugService:
 
             try:
                 keyword_candidates = self._keyword_retriever.retrieve(
-                    keywords=retrieval_query.keywords,
+                    keywords=keywords,
                     tenant_id=request.tenant_id,
                     knowledge_base_id=request.knowledge_base_id,
                     top_k=keyword_top_k,
@@ -364,6 +421,25 @@ class RetrievalDebugService:
             return True
 
         return False
+
+    @staticmethod
+    def _merge_keywords(
+        retrieval_query: RetrievalQuery,
+    ) -> list[str]:
+        """合并关键词与同义词变体，去重后返回。"""
+        keywords = list(retrieval_query.keywords)
+        if retrieval_query.synonym_keywords:
+            keywords.extend(retrieval_query.synonym_keywords)
+
+        seen: set[str] = set()
+        result: list[str] = []
+        for keyword in keywords:
+            key = keyword.strip().lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(keyword)
+        return result
 
     @staticmethod
     def _candidate_to_document(

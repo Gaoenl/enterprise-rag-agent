@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { ExperimentOutlined, SearchOutlined } from '@ant-design/icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
@@ -48,6 +48,29 @@ export function RetrievalDebugPage(
     queryKey: ['kb', 'retrieval-debug'],
     queryFn: () => kbApi.page({ pageNo: 1, pageSize: 100 }),
   });
+
+  // 检索默认参数以服务端配置为唯一真相，加载完成后填充表单。
+  const retrievalConfig = useQuery({
+    queryKey: ['retrieval', 'config'],
+    queryFn: retrievalApi.getConfig,
+  });
+
+  const configApplied = useRef(false);
+  useEffect(() => {
+    if (retrievalConfig.data && !configApplied.current) {
+      configApplied.current = true;
+      form.setFieldsValue({
+        vectorTopK: retrievalConfig.data.vectorTopK,
+        keywordTopK: retrievalConfig.data.keywordTopK,
+        fusionTopK: retrievalConfig.data.fusionTopK,
+        finalTopK: retrievalConfig.data.finalTopK,
+        rrfK: retrievalConfig.data.rrfK,
+        vectorWeight: retrievalConfig.data.vectorWeight,
+        keywordWeight: retrievalConfig.data.keywordWeight,
+        enableMultiQuery: retrievalConfig.data.multiQueryEnabled,
+      });
+    }
+  }, [retrievalConfig.data, form]);
 
   const debugMutation = useMutation({
     mutationFn: retrievalApi.debug,
@@ -111,6 +134,7 @@ export function RetrievalDebugPage(
             rrfK: 60,
             vectorWeight: 1,
             keywordWeight: 1,
+            enableMultiQuery: true,
           }}
           onFinish={submit}
         >
@@ -161,6 +185,9 @@ export function RetrievalDebugPage(
               <Switch checkedChildren="开启" unCheckedChildren="关闭" />
             </Form.Item>
             <Form.Item name="enableRerank" valuePropName="checked" label="Rerank">
+              <Switch checkedChildren="开启" unCheckedChildren="关闭" />
+            </Form.Item>
+            <Form.Item name="enableMultiQuery" valuePropName="checked" label="多查询召回">
               <Switch checkedChildren="开启" unCheckedChildren="关闭" />
             </Form.Item>
           </div>
@@ -281,10 +308,23 @@ export function RetrievalDebugPage(
                   : <Typography.Text type="secondary">未提取关键词</Typography.Text>}
               </div>
             </div>
+            {(result.alternativeQueries?.length ?? 0) > 0 && (
+              <div>
+                <Typography.Text type="secondary">子查询</Typography.Text>
+                <div className="retrieval-keywords">
+                  {(result.alternativeQueries ?? []).map((query) => (
+                    <Tag key={query} color="purple">{query}</Tag>
+                  ))}
+                </div>
+              </div>
+            )}
             <Space wrap>
               <Tag color="blue">{result.mode}</Tag>
               <Tag color={result.rewriteApplied ? 'success' : 'default'}>Rewrite</Tag>
               <Tag color={result.rerankApplied ? 'success' : 'default'}>Rerank</Tag>
+              {(result.vectorMergedCount ?? 0) > 0 && (
+                <Tag color="cyan">向量合并 {result.vectorMergedCount ?? 0}</Tag>
+              )}
             </Space>
           </div>
 

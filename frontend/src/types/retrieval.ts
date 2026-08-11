@@ -9,6 +9,8 @@ export interface RetrievalDebugRequest {
   mode: RetrievalMode;
   enableRewrite: boolean;
   enableRerank: boolean;
+  /** 是否启用多查询召回。 */
+  enableMultiQuery?: boolean;
   vectorTopK?: number;
   keywordTopK?: number;
   fusionTopK?: number;
@@ -67,6 +69,10 @@ export interface RetrievalDebugResponse {
   originalQuery: string;
   semanticQuery: string;
   keywords: string[];
+  /** 多查询召回实际使用的子查询列表。 */
+  alternativeQueries: string[];
+  /** 多路向量候选合并去重后的数量。 */
+  vectorMergedCount: number;
   mode: RetrievalMode;
   rewriteApplied: boolean;
   rerankApplied: boolean;
@@ -78,4 +84,18 @@ export interface RetrievalDebugResponse {
   packedContext: PackedContext;
   timings: RetrievalTimings;
   warnings: string[];
+}
+
+/** 检索调试默认参数（来自服务端配置）。 */
+export interface RetrievalConfig {
+  vectorTopK: number;
+  keywordTopK: number;
+  fusionTopK: number;
+  finalTopK: number;
+  rrfK: number;
+  vectorWeight: number;
+  keywordWeight: number;
+  multiQueryEnabled: boolean;
+  multiQueryTopK: number;
+  synonymExpansionEnabled: boolean;
 }

@@ -9,6 +9,7 @@ import com.example.rag.retrieval.client.PythonRetrievalDebugClient;
 import com.example.rag.retrieval.client.dto.PythonRetrievalDebugRequest;
 import com.example.rag.retrieval.dto.RetrievalDebugRequest;
 import com.example.rag.retrieval.dto.RetrievalDebugResponse;
+import com.example.rag.retrieval.dto.RetrievalConfigResponse;
 import com.example.rag.retrieval.dto.RetrievalMode;
 import com.example.rag.retrieval.service.RetrievalDebugService;
 import lombok.RequiredArgsConstructor;
@@ -135,6 +136,12 @@ public class RetrievalDebugServiceImpl
         );
 
         return response;
+    }
+
+    @Override
+    public RetrievalConfigResponse getConfig() {
+        // 检索参数以 Python 服务端配置为唯一真相，Java 直接转发。
+        return pythonClient.getConfig();
     }
 
     /**

@@ -1,5 +1,12 @@
 """基于 jieba 的本地关键词提取器。"""
+import json
+from pathlib import Path
+
 import jieba.analyse
+
+from app.config import get_settings
+
+
 class KeywordExtractor:
     # 只维护明确没有检索价值的疑问词。
     QUESTION_WORDS = {
@@ -19,6 +26,46 @@ class KeywordExtractor:
     def __init__(self, max_keywords: int = 6) -> None:
         # 控制一次检索最多使用多少个关键词。
         self._max_keywords = max_keywords
+        # 本地同义词词典（兜底：模型未生成同义词时使用）。
+        self._synonym_map: dict[str, set[str]] = {}
+        settings = get_settings()
+        if settings.retrieval_synonym_expansion_enabled:
+            self._load_synonyms(settings.retrieval_synonym_file)
+
+    def _load_synonyms(self, file: str) -> None:
+        """加载同义词词典：任一组内词语互为同义词。"""
+        path = Path(file)
+        if not path.is_absolute():
+            path = Path(__file__).resolve().parents[1] / path
+        try:
+            groups = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        for group in groups:
+            for word in group:
+                self._synonym_map.setdefault(word, set()).update(group)
+
+    def expand_synonyms(self, keywords: list[str]) -> list[str]:
+        """为每个关键词附加同义词变体（本地词典兜底），去重并限制数量。"""
+        result: list[str] = []
+        seen: set[str] = set()
+
+        for keyword in keywords:
+            for word in [
+                keyword,
+                *(self._synonym_map.get(keyword) or []),
+            ]:
+                normalized = word.strip().lower()
+                if not 2 <= len(word.strip()) <= 16:
+                    continue
+                if normalized in seen:
+                    continue
+                seen.add(normalized)
+                result.append(word.strip())
+                if len(result) >= self._max_keywords * 2:
+                    return result
+
+        return result
 
     def extract(self, question: str) -> list[str]:
         """从原始问题中提取关键词。"""

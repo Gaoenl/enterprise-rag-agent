@@ -19,6 +19,12 @@ public class RetrievalDebugResponse {
     /** 用于关键词检索的关键词。 */
     private List<String> keywords;
 
+    /** 多查询召回实际使用的子查询列表。 */
+    private List<String> alternativeQueries;
+
+    /** 多路向量候选合并去重后的数量。 */
+    private Integer vectorMergedCount;
+
     /** 实际执行的检索模式。 */
     private RetrievalMode mode;
 

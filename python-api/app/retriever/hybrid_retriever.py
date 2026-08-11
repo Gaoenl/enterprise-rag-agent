@@ -1,5 +1,5 @@
 """向量检索、关键词检索和 RRF 融合的统一入口。"""
-
+import hashlib
 import logging
 
 from langchain_core.documents import Document
@@ -7,7 +7,7 @@ from langchain_core.documents import Document
 from app.config import get_settings
 from app.retriever.keyword_retriever import KeywordRetriever
 from app.retriever.parallel_retrieval import (
-    run_parallel_retrieval,
+    run_parallel_retrieval, RetrievalBranchResult, run_parallel_calls,
 )
 from app.retriever.pgvector_retriever import PgVectorRetriever
 from app.retriever.rrf_fusion import RrfFusion
@@ -37,28 +37,41 @@ class HybridRetriever:
         keywords: list[str],
         tenant_id: int,
         knowledge_base_id: int,
+        alternative_queries: list[str] | None = None,
     ) -> list[Document]:
-        """并行执行向量和关键词检索并返回融合结果。"""
-
-        # 将两路检索同时提交到共享线程池。
-        vector_result, keyword_result = run_parallel_retrieval(
-            vector_call=lambda: self._vector_retriever.retrieve(
-                question=semantic_query,
+        """多查询并行召回 → 合并去重 → RRF 融合。"""
+        queries=[semantic_query, *(alternative_queries or [])]
+        vector_top_k = (
+            self._settings.retrieval_multi_query_top_k
+            if len(queries) > 1
+            else self._settings.retrieval_vector_top_k
+        )
+        # 1. 每个查询独立向量检索（并行）。
+        vector_calls=[
+            lambda q=q:self._vector_retriever.retrieve(
+                question=q,
                 tenant_id=tenant_id,
                 knowledge_base_id=knowledge_base_id,
-                top_k=self._settings.retrieval_vector_top_k,
-            ),
+                top_k=vector_top_k,
+            )
+            for q in queries
+        ]
+        vector_results=run_parallel_calls(vector_calls)
+        # 2. 关键词检索（一路，用主查询关键词）。
+        keyword_result = run_parallel_retrieval(
+            vector_call=lambda: [],
             keyword_call=lambda: self._retrieve_by_keywords(
                 keywords=keywords,
                 tenant_id=tenant_id,
                 knowledge_base_id=knowledge_base_id,
             ),
+        )[1]
+        # 3. 合并多路向量候选：chunk_id 去重 + 内容哈希去重。
+        vector_candidates = self._merge_vector_candidates(
+            vector_results
         )
-
-        # 分别获取候选结果和异常。
-        vector_candidates = vector_result.candidates
         keyword_candidates = keyword_result.candidates
-        vector_error = vector_result.error
+        vector_error = self._first_vector_error(vector_results)
         keyword_error = keyword_result.error
 
         # 记录向量检索异常。
@@ -122,6 +135,60 @@ class HybridRetriever:
             for candidate in fused_candidates
         ]
 
+    @staticmethod
+    def _merge_vector_candidates(
+            results: list[RetrievalBranchResult],
+    ) -> list[RetrievalCandidate]:
+        """多路向量候选合并：按 chunk_id 保留最高分，再按内容哈希去重。"""
+        settings = get_settings()
+        merged: dict[int, RetrievalCandidate] = {}
+        for result in results:
+            if result.error is not None:
+                continue
+            for candidate in result.candidates:
+                existing = merged.get(candidate.chunk_id)
+                if (
+                        existing is None
+                        or (candidate.vector_score or 0)
+                        > (existing.vector_score or 0)
+                ):
+                    merged[candidate.chunk_id] = candidate
+
+        candidates = list(merged.values())
+        if settings.retrieval_dedup_content_hash:
+            candidates = HybridRetriever._dedup_by_content(candidates)
+        return candidates
+
+    @staticmethod
+    def _dedup_by_content(
+            candidates: list[RetrievalCandidate],
+    ) -> list[RetrievalCandidate]:
+        """内容哈希去重：正文相同的 chunk 只保留第一条。"""
+        seen: set[str] = set()
+        result: list[RetrievalCandidate] = []
+        for candidate in candidates:
+            key = HybridRetriever._content_key(candidate.content)
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(candidate)
+        return result
+
+    @staticmethod
+    def _content_key(content: str) -> str:
+        """规范化空白后计算正文哈希。"""
+        normalized = " ".join((content or "").split())
+        return hashlib.md5(
+            normalized.encode("utf-8")
+        ).hexdigest()
+
+    @staticmethod
+    def _first_vector_error(
+            results: list[RetrievalBranchResult],
+    ) -> Exception | None:
+        """只有所有向量路都失败时才视为向量路失败。"""
+        errors = [r.error for r in results if r.error is not None]
+        return errors[0] if len(errors) == len(results) else None
     def _retrieve_by_keywords(
         self,
         keywords: list[str],
@@ -188,3 +255,7 @@ class HybridRetriever:
                 "metadata": candidate.metadata,
             },
         )
+
+    # 公开别名：供 RetrievalDebugService 等外部复用多路合并与错误判定。
+    merge_vector_candidates = _merge_vector_candidates
+    first_vector_error = _first_vector_error

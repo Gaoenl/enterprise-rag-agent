@@ -42,6 +42,14 @@ class RouteDecision(BaseModel):
     tool: ToolRequest | None = None
     router_path: str = "rule"  # rule / vector / llm / fallback / inherit
     inherit_context: bool = False  # True 表示直接继承上一轮决策
+    source_scores: dict[str, float] = Field(
+        default_factory=dict,
+        description="各路由来源的原始置信度，如 {llm, vector}。",
+    )
+    intent_confidence: float = Field(
+        default=0.0,
+        description="融合后的意图置信度。",
+    )
 class KnowledgeBaseCandidate(BaseModel):
     """用户当前可用的知识库候选项。"""
 
@@ -70,6 +78,10 @@ class RetrievalQuery(BaseModel):
     keywords: list[str] = Field(
         default_factory=list,
         description="用于 PostgreSQL 精确关键词检索的关键词。",
+    )
+    synonym_keywords: list[str] = Field(
+        default_factory=list,
+        description="模型生成的关键词同义/近义变体，用于扩大关键词召回。",
     )
     alternative_queries: list[str] = Field(
         default_factory=list,

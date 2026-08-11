@@ -40,7 +40,12 @@ from app.schemas.chat_schema import (
     ChatHistoryMessage,
     ChatRequest,
 )
-from app.schemas.routing_schema import ResolvedQuery, RouteDecision, L0Intent
+from app.schemas.routing_schema import (
+    L0Intent,
+    ResolvedQuery,
+    RetrievalQuery,
+    RouteDecision,
+)
 from app.schemas.trace_schema import TokenUsage
 from app.services.rerank_service import RerankService
 from app.streaming.sse_encoder import SseEncoder
@@ -633,14 +638,23 @@ class ChatService:
         with recorder.node(
             "HYBRID_RETRIEVE"
         ) as node:
+            # 合并模型生成的关键词同义变体（去重后用于关键词检索）。
+            keywords = self._merge_retrieval_keywords(
+                retrieval_query
+            )
             retrieved_documents = self._retriever.retrieve(
                 semantic_query=(
                     retrieval_query.semantic_query
                 ),
-                keywords=retrieval_query.keywords,
+                keywords=keywords,
                 tenant_id=request.tenant_id,
                 knowledge_base_id=(
                     selected_knowledge_base_id
+                ),
+                alternative_queries=(
+                    retrieval_query.alternative_queries
+                    if self._settings.retrieval_multi_query_enabled
+                    else []
                 ),
             )
 
@@ -842,6 +856,25 @@ class ChatService:
                 "question": request.question[:1000],
             },
         )
+
+    @staticmethod
+    def _merge_retrieval_keywords(
+        retrieval_query: RetrievalQuery,
+    ) -> list[str]:
+        """合并关键词与模型生成的同义词变体，去重后返回。"""
+        keywords = list(retrieval_query.keywords)
+        if retrieval_query.synonym_keywords:
+            keywords.extend(retrieval_query.synonym_keywords)
+
+        seen: set[str] = set()
+        result: list[str] = []
+        for keyword in keywords:
+            key = keyword.strip().lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(keyword)
+        return result
 
     @staticmethod
     def _build_clarification_answer(
