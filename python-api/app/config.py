@@ -103,6 +103,12 @@ class Settings:
     postgres_connect_timeout_seconds: int
     java_api_base_url: str
     # 意图路由配置。
+    # 三路意图融合参数。
+    intent_weight_llm: float
+    intent_weight_vector: float
+    intent_conf_high: float
+    intent_conf_low: float
+    intent_conf_gap: float
     intent_vector_threshold_high: float
     intent_vector_threshold_low: float
     intent_default_on_low_confidence: str
@@ -263,6 +269,21 @@ def get_settings() -> Settings:
             os.getenv("POSTGRES_CONNECT_TIMEOUT_SECONDS", "10")
         ),
         java_api_base_url=os.getenv("JAVA_API_BASE_URL", "http://localhost:8123"),
+        intent_weight_llm=float(
+            os.getenv("INTENT_WEIGHT_LLM", "0.7")
+        ),
+        intent_weight_vector=float(
+            os.getenv("INTENT_WEIGHT_VECTOR", "0.3")
+        ),
+        intent_conf_high=float(
+            os.getenv("INTENT_CONF_HIGH", "0.85")
+        ),
+        intent_conf_low=float(
+            os.getenv("INTENT_CONF_LOW", "0.6")
+        ),
+        intent_conf_gap=float(
+            os.getenv("INTENT_CONF_GAP", "0.15")
+        ),
         intent_vector_threshold_high=float(
             os.getenv("INTENT_VECTOR_THRESHOLD_HIGH", "0.82")
         ),

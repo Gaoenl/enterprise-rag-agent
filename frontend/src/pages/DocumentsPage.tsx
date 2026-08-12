@@ -47,7 +47,8 @@ export function DocumentsPage() {
     [uploadProgress, setUploadProgress] = useState<number | null>(null),
     [uploading, setUploading] = useState(false),
     [doc, setDoc] = useState<KnowledgeDocument | null>(null),
-    [trackingDocId, setTrackingDocId] = useState<string | undefined>();
+    [trackingDocId, setTrackingDocId] = useState<string | undefined>(),
+    [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
 
   const kb = useQuery({
     queryKey: ['kb', knowledgeBaseId],
@@ -125,6 +126,16 @@ export function DocumentsPage() {
       message.success('文档已删除');
       void qc.invalidateQueries({ queryKey: ['documents', knowledgeBaseId] });
     },
+  });
+
+  const batchRemove = useMutation({
+    mutationFn: (ids: string[]) => documentApi.batchRemove(ids),
+    onSuccess: () => {
+      message.success('批量删除完成');
+      setSelectedRowKeys([]);
+      void qc.invalidateQueries({ queryKey: ['documents', knowledgeBaseId] });
+    },
+    onError: (e) => message.error(e instanceof Error ? e.message : '批量删除失败'),
   });
 
   const retryTask = useMutation({
@@ -301,12 +312,29 @@ export function DocumentsPage() {
         )}
       </Card>
 
-      <div className="filter-bar">
+      <div className="filter-bar" style={{ display: 'flex', justifyContent: 'space-between' }}>
         <Input.Search allowClear placeholder="按文件名筛选"
           onChange={(e) => setSearch(e.target.value)} style={{ width: 320 }} />
+        {selectedRowKeys.length > 0 && (
+          <Popconfirm
+            title={`确认删除选中的 ${selectedRowKeys.length} 个文档？`}
+            onConfirm={() => batchRemove.mutate(selectedRowKeys)}
+          >
+            <Button danger icon={<DeleteOutlined />} loading={batchRemove.isPending}>
+              批量删除（{selectedRowKeys.length}）
+            </Button>
+          </Popconfirm>
+        )}
       </div>
 
-      <Table rowKey="id" loading={docs.isLoading} dataSource={filtered}
+      <Table
+        rowKey="id"
+        loading={docs.isLoading}
+        dataSource={filtered}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys.map(String)),
+        }}
         columns={[
           { title: '文件名', dataIndex: 'fileName' },
           { title: '类型', dataIndex: 'fileType' },

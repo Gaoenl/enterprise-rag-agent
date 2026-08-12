@@ -37,6 +37,9 @@ const experimentOptions = [
   { label: '混合检索 + Rerank（无重写）', value: 'HYBRID_RERANK' },
   { label: '混合检索 + Rewrite', value: 'HYBRID_REWRITE' },
   { label: '混合检索 + Rewrite + Rerank', value: 'HYBRID_REWRITE_RERANK' },
+  { label: '混合检索 + 多查询', value: 'HYBRID_MULTI_QUERY' },
+  { label: '混合检索 + 多查询 + Rewrite', value: 'HYBRID_MULTI_QUERY_REWRITE' },
+  { label: '混合检索 + 多查询 + Rewrite + Rerank', value: 'HYBRID_MULTI_QUERY_REWRITE_RERANK' },
 ];
 
 const percentage = (value: number) => `${(value * 100).toFixed(1)}%`;

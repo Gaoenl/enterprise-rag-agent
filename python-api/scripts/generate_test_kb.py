@@ -117,9 +117,6 @@ def build_document(domain: str, theme: dict, related_titles: list[str] | None = 
             add("")
             add(content)
             add("")
-            add("执行过程中如遇特殊情况，由归口管理部门会同相关部门研究提出处理意见，"
-                "报公司分管领导批准后执行，并在后续制度修订时予以明确。")
-            add("")
 
     # 5. 办理流程
     if process:
@@ -145,6 +142,9 @@ def build_document(domain: str, theme: dict, related_titles: list[str] | None = 
         add("")
         add("以上标准为公司统一执行口径，具体以公司最新发布的制度文件为准。"
             "如遇政策调整或市场变化，由归口管理部门提出修订建议，经审批后执行。")
+        add("")
+        add("> 注意：正文条款中涉及的数值型标准，以本章「标准与限额」表格为准；"
+            "两者不一致时，以本章表格为执行口径。")
         add("")
 
     # 7. 常见问题
@@ -189,6 +189,12 @@ def build_document(domain: str, theme: dict, related_titles: list[str] | None = 
     add("")
     add("本规定修订时，应当充分征求相关部门意见，经公司办公会审议通过后发布。"
         "本规定未尽事宜，参照公司其他相关管理制度执行。")
+    add("")
+    add("### 通用执行说明")
+    add("")
+    add(f"本规定各条款在执行过程中如遇特殊情况，由归口管理部门{dept}会同相关部门"
+        "研究提出处理意见，报公司分管领导批准后执行，并在后续制度修订时予以明确。"
+        "特殊情况处理应当书面留痕，作为后续同类事项的执行参考。")
     add("")
 
     if notes:

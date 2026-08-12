@@ -105,6 +105,16 @@ public class KnowledgeDocumentController {
         return ApiResult.ok();
     }
     /**
+     * 批量逻辑删除文档。
+     */
+    @PostMapping("/batch-delete")
+    public ApiResult<Void> batchDeleteDocuments(
+            @RequestBody List<Long> documentIds
+    ) {
+        documentService.batchDeleteDocuments(documentIds);
+        return ApiResult.ok();
+    }
+    /**
      * 查询文档 Chunk 列表。
      */
     @GetMapping("/{documentId}/chunks")

@@ -36,49 +36,86 @@ public class ParagraphTextChunker implements TextChunker{
         List<Para> paragraphs = extractParagraphs(text);
 
         StringBuilder buffer = new StringBuilder();
-
         int index = 0;
-        int offset = 0;
         int chunkStart = 0;
+        int lastParaEnd = 0;   // buffer 尾部对应的原文结束位置
+
         for (Para para : paragraphs) {
-            if(para.content.length() >chunkSize){
-                //先输出已经累积的段落内容
-                if(!buffer.isEmpty()){
-                    chunks.add(buildChunk(index++, buffer.toString(), chunkStart, offset));
+            if (para.content.length() > chunkSize) {
+                // 先输出已经累积的段落内容。
+                if (!buffer.isEmpty()) {
+                    chunks.add(buildChunk(
+                            index++,
+                            buffer.toString(),
+                            chunkStart,
+                            lastParaEnd
+                    ));
                     buffer.setLength(0);
                 }
                 // 超长段落降级为固定长度切分。
-                List<TextChunk> fixedChunks = fixedSizeTextChunker.chunk(text.substring(para.start,para.end), chunkSize, overlap);
+                List<TextChunk> fixedChunks = fixedSizeTextChunker.chunk(
+                        text.substring(para.start, para.end),
+                        chunkSize,
+                        overlap
+                );
                 for (TextChunk fixedChunk : fixedChunks) {
                     fixedChunk.setChunkIndex(index++);
-                    fixedChunk.setStartOffset(fixedChunk.getStartOffset() + offset);
-                    fixedChunk.setEndOffset(fixedChunk.getEndOffset() + offset);
+                    // 偏移相对 subString，需平移到原文（+ para.start）。
+                    fixedChunk.setStartOffset(
+                            fixedChunk.getStartOffset() + para.start
+                    );
+                    fixedChunk.setEndOffset(
+                            fixedChunk.getEndOffset() + para.start
+                    );
                     chunks.add(fixedChunk);
                 }
-                // 游标跳过当前超长段落（段落长度 + 被吃掉的 \n\n 两个字符）
+                // 游标跳过当前超长段落。
                 chunkStart = para.end;
+                lastParaEnd = para.end;
                 continue;
             }
-            // 当前 buffer + 新段落超过 chunkSize → 输出一个 Chunk
+
+            // 当前 buffer + 新段落超过 chunkSize → 输出一个 Chunk。
             int sepLen = buffer.isEmpty() ? 0 : 2; // 合并时用 \n\n 连接
-            if (buffer.length() + sepLen + para.content.length() > chunkSize) {
+            if (buffer.length() > 0
+                    && buffer.length() + sepLen + para.content.length()
+                    > chunkSize) {
                 // 当前累计内容达到目标长度，输出一个 Chunk。
-                chunks.add(buildChunk(index++, buffer.toString(), chunkStart, offset));
-                // overlap 回溯
+                chunks.add(buildChunk(
+                        index++,
+                        buffer.toString(),
+                        chunkStart,
+                        lastParaEnd
+                ));
+
+                // overlap 回溯：取上一 Chunk 尾部 overlap 字符，偏移近似。
                 String remaining = buffer.toString();
                 buffer.setLength(0);
                 int overlapStart = Math.max(0, remaining.length() - overlap);
-                buffer.append(remaining.substring(overlapStart));
-                chunkStart = para.start - (remaining.length() - overlapStart);
-
+                String overlapText = remaining.substring(overlapStart);
+                if (!overlapText.isBlank()) {
+                    buffer.append(overlapText);
+                    chunkStart = Math.max(
+                            0,
+                            lastParaEnd - overlapText.length()
+                    );
+                } else {
+                    chunkStart = para.start;
+                }
             }
 
+            // 新 Chunk 起点：buffer 为空时从当前段落开始。
+            if (buffer.isEmpty()) {
+                chunkStart = para.start;
+            }
             if (!buffer.isEmpty()) {
                 buffer.append("\n\n");
             }
             buffer.append(para.content);
+            lastParaEnd = para.end;
         }
-        // 4. 处理循环结束后 buffer 中剩余的内容
+
+        // 处理循环结束后 buffer 中剩余的内容。
         if (!buffer.isEmpty()) {
             chunks.add(buildChunk(index, buffer.toString(), chunkStart, text.length()));
         }

@@ -67,6 +67,13 @@ public interface KnowledgeDocumentService {
      */
     void deleteDocument(Long documentId);
 
+    /**
+     * 批量逻辑删除文档（仅当前租户，已删除/不存在的自动跳过）。
+     *
+     * @param documentIds 文档 ID 列表
+     */
+    void batchDeleteDocuments(List<Long> documentIds);
+
     List<KnowledgeDocumentChunk> listDocumentChunks(
             Long documentId
     );

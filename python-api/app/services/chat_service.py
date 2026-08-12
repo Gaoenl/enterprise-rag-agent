@@ -486,6 +486,8 @@ class ChatService:
                     "reason": route.reason,
                     "routerPath": route.router_path,
                     "inheritContext": route.inherit_context,
+                    "sourceScores": route.source_scores,
+                    "intentConfidence": route.intent_confidence,
                 }
             )
 

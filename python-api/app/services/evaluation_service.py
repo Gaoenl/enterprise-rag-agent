@@ -11,6 +11,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
+from app.config import get_settings
 from app.evaluation.models import CorpusDocument, EvaluationCase
 from app.schemas.evaluation_schema import (
     EvaluationCreateRequest,
@@ -22,26 +23,35 @@ from app.schemas.retrieval_debug_schema import RetrievalDebugRequest, RetrievalM
 from app.services.retrieval_debug_service import RetrievalDebugService
 
 
-# 每个实验显式声明检索模式、是否重写、是否重排和读取的结果阶段。
+# 每个实验显式声明：模式、是否重写、是否重排、是否多查询召回、读取的结果阶段。
 # 基础四组实验统一关闭 Rewrite，避免模型改写掩盖检索算法之间的差异。
 EXPERIMENT_CONFIG = {
     EvaluationExperiment.VECTOR: (
-        RetrievalMode.VECTOR, False, False, "vector_results"
+        RetrievalMode.VECTOR, False, False, False, "vector_results"
     ),
     EvaluationExperiment.KEYWORD: (
-        RetrievalMode.KEYWORD, False, False, "keyword_results"
+        RetrievalMode.KEYWORD, False, False, False, "keyword_results"
     ),
     EvaluationExperiment.HYBRID: (
-        RetrievalMode.HYBRID, False, False, "fusion_results"
+        RetrievalMode.HYBRID, False, False, False, "fusion_results"
     ),
     EvaluationExperiment.HYBRID_RERANK: (
-        RetrievalMode.HYBRID, False, True, "rerank_results"
+        RetrievalMode.HYBRID, False, True, False, "rerank_results"
     ),
     EvaluationExperiment.HYBRID_REWRITE: (
-        RetrievalMode.HYBRID, True, False, "fusion_results"
+        RetrievalMode.HYBRID, True, False, False, "fusion_results"
     ),
     EvaluationExperiment.HYBRID_REWRITE_RERANK: (
-        RetrievalMode.HYBRID, True, True, "rerank_results"
+        RetrievalMode.HYBRID, True, True, False, "rerank_results"
+    ),
+    EvaluationExperiment.HYBRID_MULTI_QUERY: (
+        RetrievalMode.HYBRID, False, False, True, "fusion_results"
+    ),
+    EvaluationExperiment.HYBRID_MULTI_QUERY_REWRITE: (
+        RetrievalMode.HYBRID, True, False, True, "fusion_results"
+    ),
+    EvaluationExperiment.HYBRID_MULTI_QUERY_REWRITE_RERANK: (
+        RetrievalMode.HYBRID, True, True, True, "rerank_results"
     ),
 }
 
@@ -164,9 +174,14 @@ class EvaluationService:
         document_mapping: dict[str, str],
     ) -> dict[str, Any]:
         """执行一条 Case，失败时按未命中计分。"""
-        mode, enable_rewrite, enable_rerank, result_field = (
-            EXPERIMENT_CONFIG[experiment]
-        )
+        (
+            mode,
+            enable_rewrite,
+            enable_rerank,
+            enable_multi_query,
+            result_field,
+        ) = EXPERIMENT_CONFIG[experiment]
+        settings = get_settings()
         gold_names = {document_mapping[key] for key in case.gold_document_keys}
         started = perf_counter()
 
@@ -180,11 +195,12 @@ class EvaluationService:
                     mode=mode,
                     enable_rewrite=enable_rewrite,
                     enable_rerank=enable_rerank,
-                    vector_top_k=30,
-                    keyword_top_k=30,
-                    fusion_top_k=20,
-                    final_top_k=15,
-                    rrf_k=60,
+                    enable_multi_query=enable_multi_query,
+                    vector_top_k=settings.retrieval_vector_top_k,
+                    keyword_top_k=settings.retrieval_keyword_top_k,
+                    fusion_top_k=settings.retrieval_fusion_top_k,
+                    final_top_k=settings.retrieval_final_top_k,
+                    rrf_k=settings.retrieval_rrf_k,
                     vector_weight=request.vector_weight,
                     keyword_weight=request.keyword_weight,
                 )

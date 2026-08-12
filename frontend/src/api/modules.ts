@@ -50,6 +50,7 @@ export const documentApi = {
   get: (id: string) => http.get<never, KnowledgeDocument>(`/api/documents/${id}`),
   chunks: (id: string) => http.get<never, DocumentChunk[]>(`/api/documents/${id}/chunks`),
   remove: (id: string) => http.delete(`/api/documents/${id}`),
+  batchRemove: (ids: string[]) => http.post('/api/documents/batch-delete', ids),
   // 根据文档 ID 触发后端完整入库流程：解析、切分、Chunk 入库和向量化。
   process: (id: string) =>
     http.post<never, void>(`/api/ingestion/tasks/documents/${id}/process`, undefined, {
@@ -176,8 +177,31 @@ export const streamChat = async (
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  // 空闲超时：长时间没有收到任何数据时中止，避免"永久缓冲"。
+  // 模型长回答可能间隔较久，这里给足 120 秒。
+  const IDLE_TIMEOUT_MS = 120_000;
   while (true) {
-    const { done, value } = await reader.read();
+    let result: ReadableStreamReadResult<Uint8Array>;
+    try {
+      result = await Promise.race([
+        reader.read(),
+        new Promise<never>((_, reject) => {
+          setTimeout(
+            () => reject(new Error('生成超时，连接已中断，请重试')),
+            IDLE_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } catch (error) {
+      // 超时后主动关闭响应流，释放连接，再把错误抛给调用方展示。
+      try {
+        await reader.cancel();
+      } catch {
+        // 关闭失败不影响错误上抛。
+      }
+      throw error;
+    }
+    const { done, value } = result;
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     const blocks = buffer.split('\n\n');

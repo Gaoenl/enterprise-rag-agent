@@ -311,6 +311,34 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchDeleteDocuments(List<Long> documentIds) {
+        // 空列表直接返回，避免无意义的数据库操作。
+        if (documentIds == null || documentIds.isEmpty()) {
+            return;
+        }
+
+        // 租户 ID 只能来自登录上下文，批量查询天然过滤已删除文档（逻辑删除）。
+        Long tenantId = currentUserProvider.requireTenantId();
+        List<KnowledgeDocument> documents = documentMapper.selectList(
+                new LambdaQueryWrapper<KnowledgeDocument>()
+                        .in(KnowledgeDocument::getId, documentIds)
+                        .eq(KnowledgeDocument::getTenantId, tenantId)
+        );
+
+        // 逐个逻辑删除并递减知识库文档计数；已删除或不存在的 ID 不在列表中，自动跳过。
+        for (KnowledgeDocument document : documents) {
+            int deletedRows = documentMapper.deleteById(document.getId());
+            if (deletedRows == 1) {
+                decrementDocumentCount(
+                        document.getKnowledgeBaseId(),
+                        document.getTenantId()
+                );
+            }
+        }
+    }
+
+    @Override
     public List<KnowledgeDocumentChunk> listDocumentChunks(Long documentId) {
 
         // getDocument 内部校验当前租户。

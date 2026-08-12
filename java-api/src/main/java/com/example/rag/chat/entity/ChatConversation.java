@@ -28,7 +28,11 @@ public class ChatConversation {
     private String title;
 
     private String channel;
+    /** 会话摘要（压缩后）。 */
+    private String summary;
 
+    /** 上次压缩到的消息 ID（用于触发边界与并发乐观锁）。 */
+    private Long lastSummaryMessageId;
     @TableField(typeHandler = JsonbTypeHandler.class)
     private String metadata;
 
