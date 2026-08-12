@@ -52,6 +52,10 @@ class ChatRequest(BaseModel):
         default_factory=list,
         description="Java 查询出的正式会话历史。",
     )
+    summary: str | None = Field(
+        default=None,
+        description="会话摘要（Java 侧压缩后），可空。",
+    )
 
 
 class ChatData(BaseModel):

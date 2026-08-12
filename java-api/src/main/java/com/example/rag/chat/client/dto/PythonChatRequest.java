@@ -47,7 +47,8 @@ public class PythonChatRequest {
      * 用户在前端明确选择的知识库 ID。
      */
     private Long knowledgeBaseId;
-
+    /** 会话摘要（Java 侧压缩后），可空。 */
+    private String summary;
     /**
      * Java 数据库中查询出的最近会话历史。
      */

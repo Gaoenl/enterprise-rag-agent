@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from langchain_core.callbacks import BaseCallbackHandler
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
 from openai import max_retries
@@ -111,6 +111,7 @@ class LlmClient:
     def chat(self, question: str,
              model: str,
              history: list[ChatHistoryMessage],
+             summary: str = "",
              context: str="",
              rag_mode: bool = False,
              tool_result: str = "",
@@ -137,7 +138,7 @@ class LlmClient:
                 token_usage=TokenUsage(),)
         # 将 Java 的历史消息转换为 LangChain Message。
         history_messages = self._build_history_messages(
-            history
+            history,summary
         )
         # 根据是否进入 RAG 构建当前用户消息。
         current_input = self._build_current_input(
@@ -184,6 +185,7 @@ class LlmClient:
             question: str,
             model: str,
             history: list[ChatHistoryMessage],
+            summary: str = "",
             context: str = "",
             rag_mode: bool = False,
             tool_result: str = "",
@@ -221,7 +223,7 @@ class LlmClient:
             "RAG context is empty before streaming LLM invocation"
         # 将 Java 传入的历史消息转换为 LangChain Message。
         history_messages = self._build_history_messages(
-            history
+            history,summary
         )
         # 根据普通聊天或 RAG 模式构建当前输入。
         current_input = self._build_current_input(
@@ -288,10 +290,14 @@ class LlmClient:
     @staticmethod
     def _build_history_messages(
             history: list[ChatHistoryMessage],
+            summary: str = "",
     ) -> list[BaseMessage]:
         """将 Java 消息结构转换为 LangChain 消息。"""
         messages: list[BaseMessage] = []
-
+        if summary:
+            messages.append(
+                SystemMessage(content=f"会话摘要：{summary}")
+            )
         for item in history:
             content = item.content.strip()
 

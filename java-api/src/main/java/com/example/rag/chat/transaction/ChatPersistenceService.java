@@ -4,12 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.rag.chat.client.dto.PythonChatData;
 import com.example.rag.chat.client.dto.PythonChatHistoryMessage;
 import com.example.rag.chat.client.dto.PythonChatRequest;
+import com.example.rag.chat.config.ConversationMemoryCache;
 import com.example.rag.chat.dto.ChatRequest;
 import com.example.rag.chat.dto.ChatStreamContext;
 import com.example.rag.chat.entity.ChatConversation;
 import com.example.rag.chat.entity.ChatMessage;
 import com.example.rag.chat.mapper.ChatConversationMapper;
 import com.example.rag.chat.mapper.ChatMessageMapper;
+import com.example.rag.chat.service.ConversationSummaryService;
 import com.example.rag.common.error.BaseErrorCode;
 import com.example.rag.common.error.ClientException;
 import com.example.rag.common.id.IdGenerator;
@@ -44,6 +46,8 @@ public class ChatPersistenceService {
     private final RagTraceService ragTraceService;
     private final IdGenerator idGenerator;
     private final ObjectMapper objectMapper;
+    private final ConversationMemoryCache memoryCache;
+    private final ConversationSummaryService summaryService;
 
     /**
      * 创建流式请求需要的数据库数据。
@@ -80,6 +84,9 @@ public class ChatPersistenceService {
                         tenantId,
                         request.getQuestion()
                 );
+        summaryService.triggerAfterCommit(conversation.getId());
+        memoryCache.pushMessage(conversation.getId(), "user", request.getQuestion());
+
 
         // 将数据库消息转换成 Python 请求格式。
         List<PythonChatHistoryMessage> history =
@@ -133,7 +140,11 @@ public class ChatPersistenceService {
 
         // 设置已持久化的最近会话历史。
         pythonRequest.setHistory(history);
-
+        // 摘要读取 Redis 优先，未命中回退 PG。
+        String summary = memoryCache.getSummary(conversation.getId());
+        pythonRequest.setSummary(
+                summary != null ? summary : conversation.getSummary()
+        );
         // 返回流式过程内部上下文。
         return ChatStreamContext.builder()
                 .tenantId(tenantId)
@@ -361,6 +372,15 @@ public class ChatPersistenceService {
     private List<ChatMessage> listRecentMessages(
             Long conversationId
     ) {
+        // 1. 优先读 Redis 工作记忆（命中即返回，省 PG 查询）。
+        List<ChatMessage> cached = memoryCache.getRecentMessages(
+                conversationId, HISTORY_LIMIT
+        );
+        if (!cached.isEmpty()) {
+            return cached;
+        }
+
+        // 2. 未命中：先按时间倒序查询最近 N 条消息。
         // 先按时间倒序查询最近 N 条消息。
         List<ChatMessage> messages =
                 messageMapper.selectList(
@@ -381,14 +401,22 @@ public class ChatPersistenceService {
                                 )
                 );
 
-        // 再恢复成真实对话顺序。
-        return messages.stream()
+        // 3. 恢复成真实对话顺序，并回填 Redis（从旧到新，leftPush 后最新在前）。
+        List<ChatMessage> ordered = messages.stream()
                 .sorted(
                         Comparator.comparing(
                                 ChatMessage::getCreatedAt
                         )
                 )
                 .toList();
+        for (ChatMessage message : ordered) {
+            memoryCache.pushMessage(
+                    conversationId,
+                    message.getRole(),
+                    message.getContent()
+            );
+        }
+        return ordered;
     }
 
     /**

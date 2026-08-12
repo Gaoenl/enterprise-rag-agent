@@ -8,6 +8,7 @@ import com.example.rag.chat.client.dto.PythonChatHistoryMessage;
 import com.example.rag.chat.client.dto.PythonChatRequest;
 import com.example.rag.chat.client.sse.PythonChatStreamSession;
 import com.example.rag.chat.client.sse.PythonSseEvent;
+import com.example.rag.chat.config.ConversationMemoryCache;
 import com.example.rag.chat.dto.ChatConversationQueryRequest;
 import com.example.rag.chat.dto.ChatRequest;
 import com.example.rag.chat.dto.ChatResponse;
@@ -66,6 +67,7 @@ public class ChatServiceImpl implements ChatService {
     private final ChatPersistenceService chatPersistenceService;
     private final Executor chatStreamExecutor;
     private final CurrentUserProvider currentUserProvider;
+    private final ConversationMemoryCache memoryCache;
 
     public ChatServiceImpl(PythonChatClient pythonChatClient,
                            ChatConversationMapper conversationMapper,
@@ -75,7 +77,8 @@ public class ChatServiceImpl implements ChatService {
                            RagTraceService ragTraceService,
                            ChatPersistenceService chatPersistenceService,
                            @Qualifier("chatStreamExecutor") Executor chatStreamExecutor,
-                           CurrentUserProvider currentUserProvider) {
+                           CurrentUserProvider currentUserProvider,
+                           ConversationMemoryCache memoryCache) {
         this.pythonChatClient = pythonChatClient;
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
@@ -85,6 +88,7 @@ public class ChatServiceImpl implements ChatService {
         this.chatPersistenceService = chatPersistenceService;
         this.chatStreamExecutor = chatStreamExecutor;
         this.currentUserProvider = currentUserProvider;
+        this.memoryCache = memoryCache;
     }
 
 
@@ -139,6 +143,12 @@ public class ChatServiceImpl implements ChatService {
 
         // 设置当前已经创建或查询到的会话 ID。
         pythonRequest.setConversationId(conversation.getId());
+
+        // 摘要读取 Redis 优先，未命中回退 PG。
+        String summary = memoryCache.getSummary(conversation.getId());
+        pythonRequest.setSummary(
+                summary != null ? summary : conversation.getSummary()
+        );
 
         // 设置用户明确选择的知识库 ID。
         pythonRequest.setKnowledgeBaseId(request.getKnowledgeBaseId());
@@ -733,6 +743,15 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private List<ChatMessage> listRecentMessages(Long conversationId) {
+        // 1. 优先读 Redis 工作记忆（命中即返回，省 PG 查询）。
+        List<ChatMessage> cached = memoryCache.getRecentMessages(
+                conversationId, HISTORY_LIMIT
+        );
+        if (!cached.isEmpty()) {
+            return cached;
+        }
+
+        // 2. 未命中：先倒序查询最近 N 条消息。
         // 先倒序查询最近 N 条消息，控制传给模型的上下文长度。
         List<ChatMessage> messages = messageMapper.selectList(new LambdaQueryWrapper<ChatMessage>()
                 .eq(ChatMessage::getConversationId, conversationId)
@@ -741,10 +760,18 @@ public class ChatServiceImpl implements ChatService {
                         .orderByDesc(ChatMessage::getId)
                 .last("LIMIT " + HISTORY_LIMIT));
 
-        // 再按时间正序传给 Python，保证消息顺序符合真实对话。
-        return messages.stream()
+        // 3. 按时间正序返回，并回填 Redis（从旧到新，leftPush 后最新在前）。
+        List<ChatMessage> ordered = messages.stream()
                 .sorted(Comparator.comparing(ChatMessage::getCreatedAt))
                 .toList();
+        for (ChatMessage message : ordered) {
+            memoryCache.pushMessage(
+                    conversationId,
+                    message.getRole(),
+                    message.getContent()
+            );
+        }
+        return ordered;
     }
 
     private ChatConversation requireCurrentTenantConversation(Long conversationId) {
