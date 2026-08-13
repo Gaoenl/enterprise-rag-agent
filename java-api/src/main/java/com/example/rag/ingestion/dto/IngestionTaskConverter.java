@@ -1,4 +1,4 @@
-package com.example.rag.ingestion.converter;
+package com.example.rag.ingestion.dto;
 
 import com.example.rag.common.enums.IngestionTaskStatus;
 import com.example.rag.ingestion.dto.IngestionTaskDetailResponse;

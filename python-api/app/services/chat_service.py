@@ -15,8 +15,8 @@ from langchain_core.documents import Document
 
 from app.clients.llm_client import LlmClient
 from app.config import get_settings
-from app.context.context_packer import ContextPacker
-from app.factories.chat_model_factory import get_chat_model
+from app.core.context_packer import ContextPacker
+from app.core.chat_model_factory import get_chat_model
 from app.postprocessors.answer_postprocessor import AnswerPostProcessor
 from app.resolver.conversation_query_resolver import (
     ConversationQueryResolver,

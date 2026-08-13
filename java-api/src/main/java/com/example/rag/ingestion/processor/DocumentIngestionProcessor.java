@@ -1,4 +1,4 @@
-package com.example.rag.ingestion.processer;
+package com.example.rag.ingestion.processor;
 
 import com.example.rag.common.error.DocumentIngestionException;
 import com.example.rag.common.id.IdGenerator;
@@ -10,10 +10,10 @@ import com.example.rag.ingestion.chunk.TextNormalizer;
 import com.example.rag.ingestion.config.PipelineConfig;
 import com.example.rag.ingestion.entity.IngestionTask;
 import com.example.rag.ingestion.enums.IngestionStepCode;
-import com.example.rag.ingestion.metrics.IngestionMetrics;
+import com.example.rag.ingestion.service.IngestionMetrics;
 import com.example.rag.ingestion.parser.DocumentParser;
 import com.example.rag.ingestion.parser.ParsedDocument;
-import com.example.rag.ingestion.persistence.ChunkPersistenceService;
+import com.example.rag.ingestion.service.ChunkPersistenceService;
 import com.example.rag.ingestion.service.IngestionTaskService;
 import com.example.rag.ingestion.service.IngestionTaskStepService;
 import com.example.rag.knowledge.entity.KnowledgeDocument;

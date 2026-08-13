@@ -3,7 +3,7 @@ package com.example.rag.common.web;
 import com.example.rag.common.context.LoginUser;
 import com.example.rag.common.context.RequestContext;
 import com.example.rag.common.context.UserContext;
-import com.example.rag.common.trace.RagTraceContext;
+import com.example.rag.trace.context.RagTraceContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

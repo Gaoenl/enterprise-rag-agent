@@ -204,7 +204,7 @@ def get_settings() -> Settings:
         ),
         retrieval_synonym_file=os.getenv(
             "RETRIEVAL_SYNONYM_FILE",
-            "config/synonyms.json",
+            "assets/synonyms.json",
         ),
 
         rerank_enabled=(
@@ -294,7 +294,7 @@ def get_settings() -> Settings:
             "INTENT_DEFAULT_ON_LOW_CONFIDENCE", "knowledge"
         ),
         intent_examples_file=os.getenv(
-            "INTENT_EXAMPLES_FILE", "config/intent_examples.json"
+            "INTENT_EXAMPLES_FILE", "assets/intent_examples.json"
         ),
         intent_llm_enabled=(
                 os.getenv("INTENT_LLM_ENABLED", "true").lower() == "true"

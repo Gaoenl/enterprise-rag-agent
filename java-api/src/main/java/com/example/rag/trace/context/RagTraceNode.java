@@ -1,4 +1,4 @@
-package com.example.rag.common.trace;
+package com.example.rag.trace.context;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

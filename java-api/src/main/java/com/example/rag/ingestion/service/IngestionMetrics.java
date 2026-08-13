@@ -1,4 +1,4 @@
-package com.example.rag.ingestion.metrics;
+package com.example.rag.ingestion.service;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;

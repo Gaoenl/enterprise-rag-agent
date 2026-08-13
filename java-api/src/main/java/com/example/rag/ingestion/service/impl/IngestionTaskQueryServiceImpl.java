@@ -9,7 +9,7 @@ import com.example.rag.common.error.BaseErrorCode;
 import com.example.rag.common.error.BusinessException;
 import com.example.rag.common.error.DatabaseException;
 import com.example.rag.common.security.CurrentUserProvider;
-import com.example.rag.ingestion.converter.IngestionTaskConverter;
+import com.example.rag.ingestion.dto.IngestionTaskConverter;
 import com.example.rag.ingestion.dto.*;
 import com.example.rag.ingestion.entity.IngestionTask;
 import com.example.rag.ingestion.entity.IngestionTaskStep;

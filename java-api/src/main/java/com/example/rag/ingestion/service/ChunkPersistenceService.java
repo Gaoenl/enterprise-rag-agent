@@ -1,4 +1,4 @@
-package com.example.rag.ingestion.persistence;
+package com.example.rag.ingestion.service;
 
 import com.example.rag.knowledge.entity.KnowledgeDocumentChunk;
 import com.example.rag.knowledge.mapper.KnowledgeDocumentChunkMapper;

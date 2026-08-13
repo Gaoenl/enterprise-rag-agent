@@ -1,8 +1,8 @@
 package com.example.rag.ingestion.pipeline;
 
 import com.example.rag.ingestion.entity.IngestionTask;
-import com.example.rag.ingestion.metrics.IngestionMetrics;
-import com.example.rag.ingestion.processer.DocumentIngestionProcessor;
+import com.example.rag.ingestion.service.IngestionMetrics;
+import com.example.rag.ingestion.processor.DocumentIngestionProcessor;
 import com.example.rag.ingestion.service.IngestionTaskService;
 import com.example.rag.knowledge.enums.DocumentProcessStatus;
 import com.example.rag.knowledge.service.KnowledgeDocumentService;

@@ -10,7 +10,7 @@ import re
 from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.factories.chat_model_factory import get_chat_model
+from app.core.chat_model_factory import get_chat_model
 from app.schemas.routing_schema import (
     IntentDomain,
     L0Intent,

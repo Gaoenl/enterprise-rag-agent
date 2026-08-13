@@ -7,8 +7,8 @@ from fastapi import HTTPException
 from langchain_core.documents import Document
 
 from app.config import get_settings
-from app.context.context_packer import ContextPacker
-from app.factories.chat_model_factory import get_chat_model
+from app.core.context_packer import ContextPacker
+from app.core.chat_model_factory import get_chat_model
 from app.retriever.hybrid_retriever import HybridRetriever
 from app.retriever.keyword_extractor import KeywordExtractor
 from app.retriever.keyword_retriever import KeywordRetriever

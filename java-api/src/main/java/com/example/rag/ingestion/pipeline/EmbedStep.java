@@ -4,7 +4,7 @@ import com.example.rag.embedding.config.EmbeddingClientProperties;
 import com.example.rag.embedding.service.ChunkEmbeddingService;
 import com.example.rag.ingestion.entity.IngestionTask;
 import com.example.rag.ingestion.enums.IngestionStepCode;
-import com.example.rag.ingestion.metrics.IngestionMetrics;
+import com.example.rag.ingestion.service.IngestionMetrics;
 import com.example.rag.ingestion.service.IngestionTaskService;
 import com.example.rag.ingestion.service.IngestionTaskStepService;
 import com.example.rag.knowledge.entity.KnowledgeDocumentChunk;

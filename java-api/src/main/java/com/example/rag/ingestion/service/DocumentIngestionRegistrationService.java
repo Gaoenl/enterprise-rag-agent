@@ -5,7 +5,7 @@ import com.example.rag.common.context.RequestContext;
 import com.example.rag.ingestion.dto.IngestionTaskCreateCommand;
 import com.example.rag.ingestion.entity.IngestionTask;
 import com.example.rag.ingestion.event.IngestionTaskStartEvent;
-import com.example.rag.ingestion.metrics.IngestionMetrics;
+import com.example.rag.ingestion.service.IngestionMetrics;
 import com.example.rag.ingestion.pipeline.StepCode;
 import com.example.rag.knowledge.entity.KnowledgeDocument;
 import com.example.rag.knowledge.mapper.KnowledgeBaseMapper;

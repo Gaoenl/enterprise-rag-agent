@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.factories.chat_model_factory import get_chat_model
+from app.core.chat_model_factory import get_chat_model
 from app.schemas.conversation_summary_schema import SummarizeRequest
 
 SYSTEM_PROMPT = (
