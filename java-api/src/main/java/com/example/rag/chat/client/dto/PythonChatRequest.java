@@ -3,6 +3,7 @@ package com.example.rag.chat.client.dto;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 调用 Python Chat 接口的请求体。
@@ -49,6 +50,10 @@ public class PythonChatRequest {
     private Long knowledgeBaseId;
     /** 会话摘要（Java 侧压缩后），可空。 */
     private String summary;
+
+    /** 上一轮意图路由决策（Java 从会话表读出，原样透传）。 */
+    private Map<String, Object> lastRoute;
+
     /**
      * Java 数据库中查询出的最近会话历史。
      */

@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.schemas.answer_schema import AnswerStatus
+from app.schemas.routing_schema import RouteDecision
 from app.schemas.trace_schema import TokenUsage, RagTraceData
 
 
@@ -55,6 +56,11 @@ class ChatRequest(BaseModel):
     summary: str | None = Field(
         default=None,
         description="会话摘要（Java 侧压缩后），可空。",
+    )
+    last_route: RouteDecision | None = Field(
+        default=None,
+        alias="lastRoute",
+        description="Java 传入的上一轮路由决策；追问时继承。",
     )
 
 
@@ -116,6 +122,10 @@ class ChatData(BaseModel):
     trace: RagTraceData | None = Field(
         default=None,
         description="开发阶段返回的完整 Trace。",
+    )
+    route: dict[str, Any] | None = Field(
+        default=None,
+        description="本轮完整路由决策，Java 持久化供下轮继承。",
     )
 class LlmResult(BaseModel):
     """LLM Client 的统一返回结果。"""

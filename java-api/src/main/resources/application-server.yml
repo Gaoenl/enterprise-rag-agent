@@ -11,8 +11,3 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
-
-rag:
-  python-agent:
-    # 服务器环境下可覆盖 Python Agent 地址。
-    base-url: ${RAG_PYTHON_AGENT_BASE_URL:http://localhost:8090}

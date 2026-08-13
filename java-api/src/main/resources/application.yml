@@ -66,11 +66,6 @@ rag:
     dimension: ${RAG_EMBEDDING_DIMENSION:1536}
     batch-size: ${RAG_EMBEDDING_BATCH_SIZE:10}
     timeout-seconds: ${RAG_EMBEDDING_TIMEOUT_SECONDS:60}
-  python-agent:
-    # Python LangGraph Agent 的服务地址，后续 Java 会通过它调用编排链路。
-    base-url: http://localhost:8090
-    # Java 调用 Python Agent 的超时时间。
-    timeout-seconds: 60
   security:
     jwt:
       #Token 签发方

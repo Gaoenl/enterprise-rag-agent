@@ -80,6 +80,7 @@ class ChatExecutionContext:
     no_evidence: bool = False
     clarification_answer: str | None = None
     tool_result: str = ""
+    route: RouteDecision | None = None
 
 
 class ChatService:
@@ -128,8 +129,6 @@ class ChatService:
 
         # 将流式事件编码为 SSE 文本。
         self._sse_encoder = SseEncoder()
-        # 多轮追问时继承的上一轮路由决策（按会话维度，单实例共享可接受）。
-        self._last_route: RouteDecision | None = None
 
 
     def answer(self, request: ChatRequest) -> ChatData:
@@ -159,6 +158,10 @@ class ChatService:
 
             # RAG 未检索到有效依据时，不调用模型。
             elif execution.no_evidence:
+                recorder.skip(
+                    "LLM_GENERATE",
+                    reason="检索无依据，未调用模型。",
+                )
                 raw_answer = (
                     self._settings.rag_empty_context_message
                 )
@@ -194,6 +197,7 @@ class ChatService:
 
                     node.set_output(
                         {
+                            "modelName": llm_result.model,
                             "answerChars": len(raw_answer),
                             "inputTokens": (
                                 token_usage.input_tokens
@@ -298,6 +302,10 @@ class ChatService:
 
             # 没有检索依据时，不调用 LLM。
             elif execution.no_evidence:
+                recorder.skip(
+                    "LLM_GENERATE",
+                    reason="检索无依据，未调用模型。",
+                )
                 raw_answer = (
                     self._settings.rag_empty_context_message
                 )
@@ -315,6 +323,7 @@ class ChatService:
                 with recorder.node(
                     "LLM_GENERATE",
                     {
+                        "model": execution.model,
                         "streaming": True,
                     },
                 ) as node:
@@ -429,6 +438,34 @@ class ChatService:
                 trace_id=request.trace_id
             )
 
+    def _resolve_route(
+        self,
+        request: ChatRequest,
+        resolved_query: ResolvedQuery,
+    ) -> RouteDecision:
+        """追问时继承 Java 传入的上一轮路由；否则重新路由。"""
+        last_route = request.last_route
+        if (
+            resolved_query.rewritten
+            and last_route is not None
+            # 上一轮是澄清时不应继承，本轮应重新决策。
+            and last_route.intent != L0Intent.CLARIFY
+        ):
+            return last_route.model_copy(
+                update={
+                    "inherit_context": True,
+                    "router_path": "inherit",
+                    "reason": "多轮追问，继承上一轮意图。",
+                }
+            )
+        return self._query_router.route(
+            query=resolved_query.standalone_query,
+            history=request.history,
+            preferred_knowledge_base_id=(
+                request.knowledge_base_id
+            ),
+        )
+
     def _prepare_execution(
         self,
         request: ChatRequest,
@@ -460,24 +497,10 @@ class ChatService:
 
         # 判断当前问题是否需要使用 RAG。
         with recorder.node("QUERY_ROUTE") as node:
-            if resolved_query.rewritten and self._last_route is not None:
-                route=self._last_route.model_copy(
-                    update={
-                        "inherit_context": True,
-                        "router_path": "inherit",
-                        "reason": "多轮追问，继承上一轮意图。",
-                    }
-
-                )
-            else:
-                route = self._query_router.route(
-                    query=resolved_query.standalone_query,
-                    history=request.history,
-                    preferred_knowledge_base_id=(
-                        request.knowledge_base_id
-                    ),
-                )
-                self._last_route = route
+            route = self._resolve_route(
+                request=request,
+                resolved_query=resolved_query,
+            )
 
             node.set_output(
                 {
@@ -497,6 +520,14 @@ class ChatService:
         if route.intent == L0Intent.TOOL:
             # 工具缺失或未注册时引导澄清，不让请求失败。
             if route.tool is None or not is_registered(route.tool.tool):
+                self._skip_retrieval_stage(
+                    recorder,
+                    "工具未开通，进入澄清流程。",
+                )
+                recorder.skip(
+                    "LLM_GENERATE",
+                    reason="需要澄清，未调用模型。",
+                )
                 return ChatExecutionContext(
                     question=request.question,
                     standalone_query=(
@@ -507,6 +538,7 @@ class ChatService:
                     intent="CLARIFY",
                     need_rag=False,
                     route_reason=route.reason,
+                    route=route,
                     clarification_answer=(
                         "当前请求需要调用工具，但该工具尚未开通，"
                         "请稍后再试或换一种问法。"
@@ -534,6 +566,14 @@ class ChatService:
                         "工具执行失败, tool=%s",
                         route.tool.tool,
                     )
+                    self._skip_retrieval_stage(
+                        recorder,
+                        "工具执行失败，进入澄清流程。",
+                    )
+                    recorder.skip(
+                        "LLM_GENERATE",
+                        reason="需要澄清，未调用模型。",
+                    )
                     return ChatExecutionContext(
                         question=request.question,
                         standalone_query=(
@@ -544,6 +584,7 @@ class ChatService:
                         intent="CLARIFY",
                         need_rag=False,
                         route_reason=route.reason,
+                        route=route,
                         clarification_answer=(
                             f"工具执行失败：{exception}，"
                             "请稍后再试或换一种问法。"
@@ -554,6 +595,10 @@ class ChatService:
                 )
         # 普通对话直接进入 LLM。
         if not route.need_rag:
+            self._skip_retrieval_stage(
+                recorder,
+                "非 RAG 意图，跳过知识库检索。",
+            )
             return ChatExecutionContext(
                 question=request.question,
                 standalone_query=(
@@ -564,6 +609,7 @@ class ChatService:
                 intent=route.intent.value,
                 need_rag=False,
                 route_reason=route.reason,
+                route=route,
             )
 
         # 在当前租户允许访问的范围内选择知识库。
@@ -598,6 +644,14 @@ class ChatService:
 
         # 无法确定知识库时返回澄清响应。
         if selection.need_clarification:
+            self._skip_retrieval_stage(
+                recorder,
+                "知识库不明确，进入澄清流程。",
+            )
+            recorder.skip(
+                "LLM_GENERATE",
+                reason="需要澄清，未调用模型。",
+            )
             return ChatExecutionContext(
                 question=request.question,
                 standalone_query=(
@@ -608,6 +662,7 @@ class ChatService:
                 intent="CLARIFY",
                 need_rag=False,
                 route_reason=selection.reason,
+                route=route,
                 clarification_answer=(
                     self._build_clarification_answer(
                         selection
@@ -646,7 +701,8 @@ class ChatService:
             keywords = self._merge_retrieval_keywords(
                 retrieval_query
             )
-            retrieved_documents = self._retriever.retrieve(
+            retrieved_documents, retrieval_stats = (
+                self._retriever.retrieve_with_stats(
                 semantic_query=(
                     retrieval_query.semantic_query
                 ),
@@ -661,12 +717,23 @@ class ChatService:
                     else []
                 ),
             )
+            )
 
             candidate_count = len(retrieved_documents)
 
             node.set_output(
                 {
                     "candidateCount": candidate_count,
+                    "vectorCount": (
+                        retrieval_stats.vector_merged_count
+                    ),
+                    "keywordCount": (
+                        retrieval_stats.keyword_count
+                    ),
+                    "multiQueryCount": (
+                        retrieval_stats.multi_query_count
+                    ),
+                    "fusedCount": retrieval_stats.fused_count,
                 }
             )
 
@@ -726,6 +793,7 @@ class ChatService:
             intent=route.intent.value,
             need_rag=True,
             route_reason=route.reason,
+            route=route,
             knowledge_base_id=(
                 selected_knowledge_base_id
             ),
@@ -774,6 +842,29 @@ class ChatService:
             )
 
         return processed
+
+    @staticmethod
+    def _skip_retrieval_stage(
+        recorder: TraceRecorder,
+        reason: str,
+    ) -> None:
+        """短路时不执行检索链路，按阶段记录 SKIPPED 节点。"""
+        recorder.skip(
+            "RETRIEVAL_QUERY_REWRITE",
+            reason=reason,
+        )
+        recorder.skip(
+            "HYBRID_RETRIEVE",
+            reason=reason,
+        )
+        recorder.skip(
+            "RERANK",
+            reason=reason,
+        )
+        recorder.skip(
+            "CONTEXT_PACK",
+            reason=reason,
+        )
 
     @staticmethod
     def _build_trace_output(
@@ -838,6 +929,11 @@ class ChatService:
             ),
             token_usage=token_usage,
             trace=trace,
+            route=(
+                execution.route.model_dump(mode="json")
+                if execution.route is not None
+                else None
+            ),
         )
 
     @staticmethod

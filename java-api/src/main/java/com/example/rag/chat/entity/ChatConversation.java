@@ -33,6 +33,11 @@ public class ChatConversation {
 
     /** 上次压缩到的消息 ID（用于触发边界与并发乐观锁）。 */
     private Long lastSummaryMessageId;
+
+    /** 上一轮意图路由决策（JSONB），供多轮追问继承。 */
+    @TableField(typeHandler = JsonbTypeHandler.class)
+    private String lastRoute;
+
     @TableField(typeHandler = JsonbTypeHandler.class)
     private String metadata;
 

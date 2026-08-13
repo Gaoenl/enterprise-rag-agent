@@ -107,6 +107,29 @@ class TraceRecorder:
             input_summary=input_summary,
         )
 
+    def skip(
+            self,
+            name: str,
+            reason: str | None = None,
+            input_summary: dict[str, Any] | None = None,
+    ) -> None:
+        """记录一个被跳过的节点（SKIPPED）。
+
+        用于流程中的短路分支：节点本应执行，但因澄清、无依据、
+        非 RAG 等决策被跳过，便于 Trace 页展示完整决策链路。
+        """
+        now = utc_now()
+        self.trace.nodes.append(
+            TraceNode(
+                name=name,
+                status=TraceNodeStatus.SKIPPED,
+                started_at=now,
+                finished_at=now,
+                input_summary=input_summary or {},
+                error_message=reason,
+            )
+        )
+
     def mark_degraded(self, reason: str) -> None:
         """记录发生过可恢复的降级。"""
         if reason not in self.trace.degraded_reasons:

@@ -1,6 +1,7 @@
 """向量检索、关键词检索和 RRF 融合的统一入口。"""
 import hashlib
 import logging
+from dataclasses import dataclass
 
 from langchain_core.documents import Document
 
@@ -15,6 +16,16 @@ from app.schemas.retrieval_schema import RetrievalCandidate
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RetrievalStats:
+    """一次混合检索的通道统计，供 Trace 与调试展示。"""
+
+    multi_query_count: int = 0
+    vector_merged_count: int = 0
+    keyword_count: int = 0
+    fused_count: int = 0
 
 
 class HybridRetriever:
@@ -40,6 +51,24 @@ class HybridRetriever:
         alternative_queries: list[str] | None = None,
     ) -> list[Document]:
         """多查询并行召回 → 合并去重 → RRF 融合。"""
+        documents, _ = self.retrieve_with_stats(
+            semantic_query=semantic_query,
+            keywords=keywords,
+            tenant_id=tenant_id,
+            knowledge_base_id=knowledge_base_id,
+            alternative_queries=alternative_queries,
+        )
+        return documents
+
+    def retrieve_with_stats(
+        self,
+        semantic_query: str,
+        keywords: list[str],
+        tenant_id: int,
+        knowledge_base_id: int,
+        alternative_queries: list[str] | None = None,
+    ) -> tuple[list[Document], RetrievalStats]:
+        """多查询并行召回 → 合并去重 → RRF 融合，并返回各通道统计。"""
         queries=[semantic_query, *(alternative_queries or [])]
         vector_top_k = (
             self._settings.retrieval_multi_query_top_k
@@ -130,10 +159,17 @@ class HybridRetriever:
         )
 
         # 转换为 ContextPacker 和后续 RAG 链路使用的 Document。
-        return [
+        documents = [
             self._to_document(candidate)
             for candidate in fused_candidates
         ]
+        stats = RetrievalStats(
+            multi_query_count=len(queries),
+            vector_merged_count=len(vector_candidates),
+            keyword_count=len(keyword_candidates),
+            fused_count=len(fused_candidates),
+        )
+        return documents, stats
 
     @staticmethod
     def _merge_vector_candidates(

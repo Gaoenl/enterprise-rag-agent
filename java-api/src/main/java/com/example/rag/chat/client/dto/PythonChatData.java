@@ -89,4 +89,7 @@ public class PythonChatData {
      */
     private List<Map<String, Object>> citations;
 
+    /** 本轮完整路由决策，Java 持久化到会话表供下轮继承。 */
+    private Map<String, Object> route;
+
 }

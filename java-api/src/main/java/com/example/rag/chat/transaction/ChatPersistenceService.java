@@ -140,6 +140,26 @@ public class ChatPersistenceService {
 
         // 设置已持久化的最近会话历史。
         pythonRequest.setHistory(history);
+
+        // 设置上一轮路由决策（多轮意图继承，Python 无状态化）。
+        String lastRouteJson = conversation.getLastRoute();
+        if (lastRouteJson != null && !lastRouteJson.isBlank()) {
+            try {
+                pythonRequest.setLastRoute(
+                        objectMapper.readValue(
+                                lastRouteJson,
+                                Map.class
+                        )
+                );
+            } catch (Exception exception) {
+                log.warn(
+                        "解析会话 last_route 失败, conversationId={}",
+                        conversation.getId(),
+                        exception
+                );
+            }
+        }
+
         // 摘要读取 Redis 优先，未命中回退 PG。
         String summary = memoryCache.getSummary(conversation.getId());
         pythonRequest.setSummary(
@@ -233,6 +253,12 @@ public class ChatPersistenceService {
         updateConversationKnowledgeBase(
                 context.getConversationId(),
                 pythonData.getKnowledgeBaseId()
+        );
+
+        // 持久化本轮路由决策，供下轮追问继承（Python 无状态化）。
+        updateConversationLastRoute(
+                context.getConversationId(),
+                pythonData.getRoute()
         );
 
         return assistantMessage;
@@ -452,6 +478,43 @@ public class ChatPersistenceService {
         conversationMapper.updateById(
                 conversation
         );
+    }
+
+    /**
+     * 持久化本轮路由决策到会话表，供下轮追问继承。
+     */
+    private void updateConversationLastRoute(
+            Long conversationId,
+            Map<String, Object> route
+    ) {
+        // 兼容旧 Python（未返回 route）时不写。
+        if (route == null || route.isEmpty()) {
+            return;
+        }
+
+        ChatConversation conversation =
+                conversationMapper.selectById(
+                        conversationId
+                );
+
+        if (conversation == null) {
+            return;
+        }
+
+        try {
+            conversation.setLastRoute(
+                    objectMapper.writeValueAsString(route)
+            );
+            conversationMapper.updateById(
+                    conversation
+            );
+        } catch (JsonProcessingException exception) {
+            log.warn(
+                    "序列化会话 last_route 失败, conversationId={}",
+                    conversationId,
+                    exception
+            );
+        }
     }
 
     /**
