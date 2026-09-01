@@ -1,8 +1,8 @@
-package com.example.rag.retrieval.service;
+package com.example.rag.evaluation.service;
 
-import com.example.rag.retrieval.dto.RetrievalDebugRequest;
-import com.example.rag.retrieval.dto.RetrievalDebugResponse;
-import com.example.rag.retrieval.dto.RetrievalConfigResponse;
+import com.example.rag.evaluation.dto.RetrievalDebugRequest;
+import com.example.rag.evaluation.dto.RetrievalDebugResponse;
+import com.example.rag.evaluation.dto.RetrievalConfigResponse;
 
 /**
  * 检索调试业务服务。

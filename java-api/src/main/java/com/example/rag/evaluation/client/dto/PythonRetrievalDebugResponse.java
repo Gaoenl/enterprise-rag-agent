@@ -1,6 +1,6 @@
-package com.example.rag.retrieval.client.dto;
+package com.example.rag.evaluation.client.dto;
 
-import com.example.rag.retrieval.dto.RetrievalDebugResponse;
+import com.example.rag.evaluation.dto.RetrievalDebugResponse;
 import lombok.Data;
 
 /**

@@ -1,4 +1,4 @@
-package com.example.rag.retrieval.dto;
+package com.example.rag.evaluation.dto;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.DecimalMax;

@@ -1,4 +1,4 @@
-package com.example.rag.retrieval.dto;
+package com.example.rag.evaluation.dto;
 
 /**
  * 检索调试模式。

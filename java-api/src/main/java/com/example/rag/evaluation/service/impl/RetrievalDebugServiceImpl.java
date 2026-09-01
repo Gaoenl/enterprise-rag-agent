@@ -1,17 +1,17 @@
-package com.example.rag.retrieval.service.impl;
+package com.example.rag.evaluation.service.impl;
 
 import com.example.rag.common.context.RequestContext;
 import com.example.rag.common.error.BaseErrorCode;
 import com.example.rag.common.error.ClientException;
 import com.example.rag.common.security.CurrentUserProvider;
 import com.example.rag.knowledge.service.KnowledgeBaseService;
-import com.example.rag.retrieval.client.PythonRetrievalDebugClient;
-import com.example.rag.retrieval.client.dto.PythonRetrievalDebugRequest;
-import com.example.rag.retrieval.dto.RetrievalDebugRequest;
-import com.example.rag.retrieval.dto.RetrievalDebugResponse;
-import com.example.rag.retrieval.dto.RetrievalConfigResponse;
-import com.example.rag.retrieval.dto.RetrievalMode;
-import com.example.rag.retrieval.service.RetrievalDebugService;
+import com.example.rag.evaluation.client.PythonRetrievalDebugClient;
+import com.example.rag.evaluation.client.dto.PythonRetrievalDebugRequest;
+import com.example.rag.evaluation.dto.RetrievalDebugRequest;
+import com.example.rag.evaluation.dto.RetrievalDebugResponse;
+import com.example.rag.evaluation.dto.RetrievalConfigResponse;
+import com.example.rag.evaluation.dto.RetrievalMode;
+import com.example.rag.evaluation.service.RetrievalDebugService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

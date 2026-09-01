@@ -1,12 +1,12 @@
-package com.example.rag.retrieval.client;
+package com.example.rag.evaluation.client;
 
 import com.example.rag.common.error.BaseErrorCode;
 import com.example.rag.common.error.RemoteException;
 import com.example.rag.embedding.config.EmbeddingClientProperties;
-import com.example.rag.retrieval.client.dto.PythonRetrievalDebugRequest;
-import com.example.rag.retrieval.client.dto.PythonRetrievalDebugResponse;
-import com.example.rag.retrieval.dto.RetrievalConfigResponse;
-import com.example.rag.retrieval.dto.RetrievalDebugResponse;
+import com.example.rag.evaluation.client.dto.PythonRetrievalDebugRequest;
+import com.example.rag.evaluation.client.dto.PythonRetrievalDebugResponse;
+import com.example.rag.evaluation.dto.RetrievalConfigResponse;
+import com.example.rag.evaluation.dto.RetrievalDebugResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

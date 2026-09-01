@@ -1,10 +1,10 @@
-package com.example.rag.retrieval.controller;
+package com.example.rag.evaluation.controller;
 
 import com.example.rag.common.api.ApiResult;
-import com.example.rag.retrieval.dto.RetrievalConfigResponse;
-import com.example.rag.retrieval.dto.RetrievalDebugRequest;
-import com.example.rag.retrieval.dto.RetrievalDebugResponse;
-import com.example.rag.retrieval.service.RetrievalDebugService;
+import com.example.rag.evaluation.dto.RetrievalConfigResponse;
+import com.example.rag.evaluation.dto.RetrievalDebugRequest;
+import com.example.rag.evaluation.dto.RetrievalDebugResponse;
+import com.example.rag.evaluation.service.RetrievalDebugService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;

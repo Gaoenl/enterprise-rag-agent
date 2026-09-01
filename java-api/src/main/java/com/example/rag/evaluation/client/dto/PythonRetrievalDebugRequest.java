@@ -1,6 +1,6 @@
-package com.example.rag.retrieval.client.dto;
+package com.example.rag.evaluation.client.dto;
 
-import com.example.rag.retrieval.dto.RetrievalMode;
+import com.example.rag.evaluation.dto.RetrievalMode;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
