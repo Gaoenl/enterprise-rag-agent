@@ -2,12 +2,12 @@ from functools import lru_cache
 
 from fastapi import APIRouter, Depends
 
-from app.core.response import ApiResult
+from app.api.response import ApiResult
 from app.schemas.conversation_summary_schema import (
     SummarizeRequest,
     SummarizeResponse,
 )
-from app.services.conversation_summary_service import (
+from app.apps.chat.summary_service import (
     ConversationSummaryService,
 )
 

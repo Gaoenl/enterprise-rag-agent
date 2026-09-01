@@ -4,13 +4,13 @@ from functools import lru_cache
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.core.response import ApiResult
+from app.api.response import ApiResult
 from app.schemas.evaluation_schema import (
     EvaluationCreateRequest,
     EvaluationResultData,
     EvaluationRunData,
 )
-from app.services.evaluation_service import EvaluationService
+from app.apps.evaluation.evaluation_service import EvaluationService
 
 
 router = APIRouter(prefix="/api/evaluations/retrieval", tags=["rag-evaluation"])

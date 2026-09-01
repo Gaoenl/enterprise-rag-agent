@@ -20,9 +20,10 @@ from app.api.retrieval_debug_api import (
 )
 from app.api.conversation_summary_api import router as summary_router
 from app.api.evaluation_api import router as evaluation_router
+from app.api.errors import register_error_handlers
 from contextlib import asynccontextmanager
 
-from app.db.postgres import (
+from app.rag.db.postgres import (
     close_connection_pool,
     init_connection_pool,
 )
@@ -54,6 +55,9 @@ def create_app() -> FastAPI:
         description="Python model and RAG orchestration API for the enterprise RAG project.",
         lifespan=lifespan,
     )
+
+    # 注册 RAG 核心异常处理器。
+    register_error_handlers(app)
 
     # 注册 API 路由。
     # 每个 router 可以理解为一组 Controller 方法。

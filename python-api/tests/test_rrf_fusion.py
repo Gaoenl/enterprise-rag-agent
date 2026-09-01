@@ -2,8 +2,8 @@
 
 import pytest
 
-from app.retriever.rrf_fusion import RrfFusion
-from app.schemas.retrieval_schema import RetrievalCandidate
+from app.rag.retriever.rrf_fusion import RrfFusion
+from app.rag.schemas.retrieval_schema import RetrievalCandidate
 
 
 def candidate(chunk_id: int, *, vector_score: float | None = None,

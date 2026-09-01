@@ -2,11 +2,11 @@
 
 from unittest.mock import MagicMock, patch
 
-from app.router.fusion import FusionConfig, fuse
-from app.router.intent_router import IntentRouter
-from app.router.query_router import QueryRouter
-from app.router.vector_intent_router import VectorMatch
-from app.schemas.routing_schema import (
+from app.rag.router.fusion import FusionConfig, fuse
+from app.rag.router.intent_router import IntentRouter
+from app.rag.router.query_router import QueryRouter
+from app.rag.router.vector_intent_router import VectorMatch
+from app.rag.schemas.routing_schema import (
     IntentDomain,
     L0Intent,
     RouteDecision,
@@ -144,11 +144,11 @@ class TestIntentRouter:
         )
         with (
             patch(
-                "app.router.vector_intent_router.VectorIntentRouter.__init__",
+                "app.rag.router.vector_intent_router.VectorIntentRouter.__init__",
                 return_value=None,
             ),
             patch(
-                "app.router.llm_intent_router.LlmIntentRouter.__init__",
+                "app.rag.router.llm_intent_router.LlmIntentRouter.__init__",
                 return_value=None,
             ),
         ):

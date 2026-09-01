@@ -9,9 +9,9 @@
 
 from fastapi import APIRouter, Depends
 
-from app.core.response import ApiResult
+from app.api.response import ApiResult
 from app.schemas.embedding_schema import EmbeddingData, EmbeddingRequest
-from app.services.embedding_service import EmbeddingService
+from app.rag.clients.embedding_service import EmbeddingService
 from functools import lru_cache
 
 # prefix="/api" 表示本文件下所有接口都会带 /api 前缀。

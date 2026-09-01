@@ -6,7 +6,7 @@ Java 服务、Docker、负载均衡或运维脚本都可以调用这个接口探
 
 from fastapi import APIRouter
 
-from app.core.response import ApiResult
+from app.api.response import ApiResult
 
 # APIRouter 类似一组 Controller。
 # tags 会显示在 FastAPI Swagger 文档中，方便接口分组。

@@ -12,9 +12,9 @@ from functools import lru_cache
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from app.core.response import ApiResult
+from app.api.response import ApiResult
 from app.schemas.chat_schema import ChatData, ChatRequest
-from app.services.chat_service import ChatService
+from app.apps.chat.chat_service import ChatService
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 

@@ -2,7 +2,7 @@
 
 from langchain_core.documents import Document
 
-from app.postprocessors.answer_postprocessor import AnswerPostProcessor
+from app.rag.postprocess.answer_postprocessor import AnswerPostProcessor
 from app.schemas.answer_schema import AnswerStatus
 
 

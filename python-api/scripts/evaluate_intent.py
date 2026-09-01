@@ -15,9 +15,9 @@ from pathlib import Path
 # 保证 `python scripts/evaluate_intent.py` 也能找到 python-api 根目录下的 app 包。
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.router.intent_router import IntentRouter
-from app.router.query_router import QueryRouter
-from app.schemas.routing_schema import L0Intent
+from app.rag.router.intent_router import IntentRouter
+from app.rag.router.query_router import QueryRouter
+from app.rag.schemas.routing_schema import L0Intent
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET = ROOT / "evaluation" / "datasets" / "intent_v1.json"

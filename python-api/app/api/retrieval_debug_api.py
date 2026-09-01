@@ -5,13 +5,13 @@ from functools import lru_cache
 from fastapi import APIRouter, Depends
 
 from app.config import get_settings
-from app.core.response import ApiResult
+from app.api.response import ApiResult
 from app.schemas.retrieval_debug_schema import (
     RetrievalConfigData,
     RetrievalDebugData,
     RetrievalDebugRequest,
 )
-from app.services.retrieval_debug_service import (
+from app.apps.evaluation.debug_service import (
     RetrievalDebugService,
 )
 

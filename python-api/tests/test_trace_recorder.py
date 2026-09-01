@@ -7,7 +7,7 @@ from app.schemas.trace_schema import (
     TraceNodeStatus,
     TraceStatus,
 )
-from app.trace.trace_recorder import TraceRecorder
+from app.rag.trace.trace_recorder import TraceRecorder
 
 
 def create_recorder() -> TraceRecorder:
