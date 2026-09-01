@@ -1,0 +1,22 @@
+[
+  { "id": 1, "query": "差旅费能报多少", "expected_intent": "KNOWLEDGE", "expected_domain": "EXPENSE", "note": "语义匹配，关键词漏检用例" },
+  { "id": 2, "query": "公司的报销标准是什么", "expected_intent": "KNOWLEDGE", "expected_domain": "EXPENSE", "note": "直白报销问题" },
+  { "id": 3, "query": "住宿费标准是多少", "expected_intent": "KNOWLEDGE", "expected_domain": "EXPENSE", "note": "住宿标准" },
+  { "id": 4, "query": "请假流程怎么走", "expected_intent": "KNOWLEDGE", "expected_domain": "HR", "note": "人事流程" },
+  { "id": 5, "query": "年假有几天", "expected_intent": "KNOWLEDGE", "expected_domain": "HR", "note": "年休假" },
+  { "id": 6, "query": "试用期多久", "expected_intent": "KNOWLEDGE", "expected_domain": "HR", "note": "试用期" },
+  { "id": 7, "query": "合同有效期多久", "expected_intent": "KNOWLEDGE", "expected_domain": "CONTRACT", "note": "合同条款" },
+  { "id": 8, "query": "合同怎么审批", "expected_intent": "KNOWLEDGE", "expected_domain": "CONTRACT", "note": "合同流程" },
+  { "id": 9, "query": "印章怎么使用", "expected_intent": "KNOWLEDGE", "expected_domain": "POLICY", "note": "行政制度" },
+  { "id": 10, "query": "会议室怎么预约", "expected_intent": "KNOWLEDGE", "expected_domain": "POLICY", "note": "行政制度" },
+  { "id": 11, "query": "你好", "expected_intent": "CHAT", "expected_domain": "GENERAL", "note": "问候" },
+  { "id": 12, "query": "介绍一下你自己", "expected_intent": "CHAT", "expected_domain": "GENERAL", "note": "自我介绍" },
+  { "id": 13, "query": "计算 2 的 10 次方", "expected_intent": "TOOL", "expected_tool": "calculator", "note": "工具调用" },
+  { "id": 14, "query": "查一下今天的天气", "expected_intent": "TOOL", "expected_tool": "web_search", "note": "实时信息" },
+  { "id": 15, "query": "", "expected_intent": "CLARIFY", "expected_domain": "GENERAL", "note": "空问题" },
+  { "id": 16, "query": "它有效期多久", "expected_intent": "KNOWLEDGE", "expected_domain": "CONTRACT", "inherit": true, "note": "追问继承" },
+  { "id": 17, "query": "那住宿标准呢", "expected_intent": "KNOWLEDGE", "expected_domain": "EXPENSE", "inherit": true, "note": "追问继承" },
+  { "id": 18, "query": "出差路费怎么报销", "expected_intent": "KNOWLEDGE", "expected_domain": "EXPENSE", "note": "换说法漏检用例" },
+  { "id": 19, "query": "团建经费标准", "expected_intent": "KNOWLEDGE", "expected_domain": "GENERAL", "note": "通用福利" },
+  { "id": 20, "query": "员工手册在哪看", "expected_intent": "KNOWLEDGE", "expected_domain": "HR", "note": "员工手册" }
+]

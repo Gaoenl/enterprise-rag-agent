@@ -1,0 +1,10 @@
+{
+  "dataset": "CRUD-RAG",
+  "task_type": "QUESTANSWER_1DOC",
+  "random_seed": 20260805,
+  "case_count": 50,
+  "gold_document_count": 50,
+  "negative_document_count": 950,
+  "hard_negative_document_count": 490,
+  "total_document_count": 1000
+}
