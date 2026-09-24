@@ -32,41 +32,70 @@ class ChatService:
     """聊天业务入口，内部复用 RagEngine。"""
 
     def __init__(
-        self,
-        engine: RagEngine | None = None,
+        self, memory, summary_service,engine: RagEngine | None = None,
     ) -> None:
+        self._memory = memory
+        self._summary_service = summary_service
         self._engine = engine or RagEngine()
         self._settings = get_settings()
         self._sse_encoder = SseEncoder()
 
-    def answer(self, request: ChatRequest) -> ChatData:
-        """执行同步聊天流程。"""
+    def close(self) -> None:
+        close = getattr(self._memory, "close", None)
+        if callable(close):
+            close()
+
+    def answer(self, request):
         self._validate_request(request)
-        recorder = self._create_recorder(request)
+        context = self._memory.begin(request)
+
+        recorder = self._create_recorder(
+            request.model_copy(
+                update={"conversation_id": context.conversation_id}
+            )
+        )
+        recorder.trace = context.trace
 
         try:
             result = self._engine.query(
-                self._to_rag_query(request),
+                self._to_rag_query(request, context),
                 recorder=recorder,
             )
+
             trace = recorder.finish(
-                output_summary=self._build_trace_output(
-                    result=result,
-                ),
+                output_summary=self._build_trace_output(result),
                 token_usage=result.token_usage,
             )
-            return self._build_chat_data(
+
+            data = self._build_chat_data(
                 request=request,
+                context=context,
                 result=result,
                 trace=trace,
             )
-        except Exception as exception:
-            recorder.fail(exception)
-            logger.exception(
-                "Chat failed, trace_id=%s",
-                request.trace_id,
-            )
+
+            self._memory.complete(context, data)
+
+        except Exception as exc:
+            try:
+                self._memory.fail(context, recorder.fail(exc))
+            except Exception:
+                logger.exception("保存失败 trace 异常")
             raise
+
+        self._summarize_safely(context)
+        return data
+
+    def _summarize_safely(self, context):
+        try:
+            self._memory.summarize_if_needed(
+                context,
+                self._summary_service,
+            )
+        except Exception:
+            logger.exception(
+                "摘要更新失败，已保存的回答不受影响"
+            )
 
     def stream_answer(
         self,
@@ -74,13 +103,18 @@ class ChatService:
     ) -> Iterator[str]:
         """执行聊天流程并返回 SSE 事件流。"""
         self._validate_request(request)
-        recorder = self._create_recorder(request)
-        rag_query = self._to_rag_query(request)
+        context = self._memory.begin(request)
+        actual_request = request.model_copy(
+            update={"conversation_id": context.conversation_id}
+        )
+        recorder = self._create_recorder(actual_request)
+        recorder.trace = context.trace
+        rag_query = self._to_rag_query(request, context)
 
         try:
             yield self._sse_encoder.start(
                 trace_id=request.trace_id,
-                conversation_id=request.conversation_id,
+                conversation_id=context.conversation_id,
             )
 
             prepared = self._engine.prepare(
@@ -166,11 +200,14 @@ class ChatService:
 
             chat_data = self._build_chat_data(
                 request=request,
+                context=context,
                 prepared=prepared,
                 processed=processed,
                 token_usage=token_usage,
                 trace=trace,
             )
+            # 必须在发送 final 前提交：
+            self._memory.complete(context, chat_data)
             yield self._sse_encoder.final(
                 data=chat_data.model_dump(
                     by_alias=True,
@@ -178,50 +215,69 @@ class ChatService:
                 )
             )
             yield self._sse_encoder.done(
-                trace_id=request.trace_id
+                trace_id=context.trace_id
             )
+            self._summarize_safely(context)
+
 
         except GeneratorExit:
-            recorder.fail(
-                RuntimeError("SSE client disconnected")
-            )
-            logger.warning(
-                "SSE client disconnected, trace_id=%s",
-                request.trace_id,
-            )
+
+            try:
+
+                self._memory.fail(
+
+                    context,
+
+                    recorder.fail(RuntimeError("SSE client disconnected")),
+
+                )
+
+            except Exception:
+
+                logger.exception("保存断开连接 trace 失败")
+
             raise
 
-        except Exception as exception:
-            recorder.fail(exception)
-            logger.exception(
-                "Streaming chat failed, trace_id=%s",
-                request.trace_id,
-            )
+
+        except Exception as exc:
+
+            try:
+
+                self._memory.fail(context, recorder.fail(exc))
+
+            except Exception:
+
+                logger.exception("保存失败 trace 异常")
+
             yield self._sse_encoder.error(
+
                 code="CHAT_STREAM_FAILED",
-                message=str(exception),
-                trace_id=request.trace_id,
-            )
-            yield self._sse_encoder.done(
-                trace_id=request.trace_id
+
+                message=str(exc),
+
+                trace_id=context.trace_id,
+
             )
 
+            yield self._sse_encoder.done(trace_id=context.trace_id)
+
     # ── 转换与组装 ──────────────────────────────
-    def _to_rag_query(self, request: ChatRequest) -> RagQuery:
+    def _to_rag_query(self, request: ChatRequest,context) -> RagQuery:
         return RagQuery(
             question=request.question,
-            history=request.history,
-            summary=request.summary,
+            history=context.history,
+            summary=context.summary,
             tenant_id=request.tenant_id,
             user_id=request.user_id,
             knowledge_base_id=request.knowledge_base_id,
             model=request.model,
-            last_route=request.last_route,
+            last_route=context.last_route,
         )
 
     def _build_chat_data(
         self,
         request: ChatRequest,
+        context,
         result=None,
         prepared: RagPrepared | None = None,
         processed: AnswerPostProcessResult | None = None,
@@ -239,8 +295,10 @@ class ChatService:
             )
             return ChatData(
                 trace_id=request.trace_id,
+                conversation_id=context.conversation_id,
                 question=request.question,
                 standalone_query=result.standalone_query,
+                route=result.route if prepared is None else prepared.route,
                 answer=result.answer,
                 model=result.model,
                 mode=mode,
@@ -267,8 +325,10 @@ class ChatService:
         )
         return ChatData(
             trace_id=request.trace_id,
+            conversation_id=context.conversation_id,
             question=request.question,
             standalone_query=prepared.standalone_query,
+            route=result.route if prepared is None else prepared.route,
             answer=processed.answer,
             model=prepared.model,
             mode=mode,
@@ -347,11 +407,6 @@ class ChatService:
             raise HTTPException(
                 status_code=400,
                 detail="question length must be <= 10000",
-            )
-        if len(request.history) > 100:
-            raise HTTPException(
-                status_code=400,
-                detail="history size must be <= 100",
             )
         if request.model and (
             request.model != self._settings.llm_model

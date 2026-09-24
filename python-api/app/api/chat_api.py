@@ -13,8 +13,11 @@ from functools import lru_cache
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from app.api.response import ApiResult
+from app.apps.chat.summary_service import ConversationSummaryService
 from app.schemas.chat_schema import ChatData, ChatRequest
 from app.apps.chat.chat_service import ChatService
+from app.memory.conversation_memory import ConversationMemory
+from app.memory.database import MemoryDatabase
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -22,7 +25,19 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 @lru_cache
 def get_chat_service() -> ChatService:
     """Return a cached ChatService instance."""
-    return ChatService()
+    database = MemoryDatabase()
+    memory = ConversationMemory(database)
+    summary = ConversationSummaryService()
+    return ChatService(memory=memory, summary_service=summary)
+
+
+def close_chat_service() -> None:
+    """Close cached chat dependencies during application shutdown."""
+    if get_chat_service.cache_info().currsize == 0:
+        return
+    service = get_chat_service()
+    service.close()
+    get_chat_service.cache_clear()
 
 
 @router.post("/completions")

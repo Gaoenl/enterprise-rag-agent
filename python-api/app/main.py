@@ -11,7 +11,10 @@
 import uvicorn
 from fastapi import FastAPI
 
-from app.api.chat_api import router as chat_router
+from app.api.chat_api import (
+    close_chat_service,
+    router as chat_router,
+)
 from app.api.embedding_api import router as embedding_router
 from app.api.health_api import router as health_router
 from app.config import get_settings
@@ -36,6 +39,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        close_chat_service()
         # 应用停止时释放物理数据库连接。
         close_connection_pool()
 def create_app() -> FastAPI:

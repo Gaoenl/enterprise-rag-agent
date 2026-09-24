@@ -8,3 +8,5 @@ langchain-openai
 langchain-core
 jieba==0.42.1
 psycopg[binary,pool]
+SQLAlchemy>=2.0,<2.1
+redis

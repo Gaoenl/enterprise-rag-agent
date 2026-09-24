@@ -58,6 +58,11 @@ class Settings:
     postgres_db: str
     postgres_user: str
     postgres_password: str
+    redis_enabled: bool
+    redis_host: str
+    redis_port: int
+    redis_password: str
+    redis_db: int
     # RAG
     rag_top_k: int
     rag_max_context_chars: int
@@ -157,6 +162,13 @@ def get_settings() -> Settings:
         postgres_db=os.getenv("POSTGRES_DB", "enterprise_rag"),
         postgres_user=os.getenv("POSTGRES_USER", ""),
         postgres_password=os.getenv("POSTGRES_PASSWORD", ""),
+        redis_enabled=(
+            os.getenv("REDIS_ENABLED", "false").lower() == "true"
+        ),
+        redis_host=os.getenv("REDIS_HOST", "127.0.0.1"),
+        redis_port=int(os.getenv("REDIS_PORT", "6379")),
+        redis_password=os.getenv("REDIS_PASSWORD", ""),
+        redis_db=int(os.getenv("REDIS_DB", "0")),
         rag_top_k=int(os.getenv("RAG_TOP_K", "5")),
         rag_max_context_chars=int(os.getenv("RAG_MAX_CONTEXT_CHARS", "6000")),
         retrieval_vector_top_k=int(

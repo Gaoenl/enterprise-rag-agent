@@ -16,117 +16,82 @@ class ChatHistoryMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    """Request body for a user question.
+    """Java 网关传入的最小聊天命令。"""
 
-    This first version does not run retrieval. It only sends the question
-    directly to the configured chat model.
-    """
-    # 允许同时使用 snake_case 和 Java 发送的 camelCase。
     model_config = ConfigDict(populate_by_name=True)
 
-    question: str = Field(..., min_length=1, description="用户当前问题。")
-    model: str | None = Field(default=None, description="本次使用的模型。")
-    tenant_id: int | None = Field(default=None, alias="tenantId", description="租户 ID。")
-    user_id: int | None = Field(default=None, alias="userId", description="用户 ID。")
-    trace_id: int = Field(
+    question: str = Field(
         ...,
-        alias="traceId",
-        description="Java 生成的 RAG Trace ID。",
-    )
-
-    request_id: str | None = Field(
-        default=None,
-        alias="requestId",
-        description="Java 与 Python 日志关联 ID。",
+        min_length=1,
+        max_length=10000,
     )
     conversation_id: int | None = Field(
         default=None,
         alias="conversationId",
-        description="会话 ID。",
     )
-    knowledge_base_id: int | None = Field(
-        default=None,
-        alias="knowledgeBaseId",
-        description="用户明确选择的知识库 ID。",
-    )
-    history: list[ChatHistoryMessage] = Field(
-        default_factory=list,
-        description="Java 查询出的正式会话历史。",
-    )
-    summary: str | None = Field(
-        default=None,
-        description="会话摘要（Java 侧压缩后），可空。",
-    )
-    last_route: RouteDecision | None = Field(
-        default=None,
-        alias="lastRoute",
-        description="Java 传入的上一轮路由决策；追问时继承。",
-    )
-
-
-class ChatData(BaseModel):
-    """聊天接口响应数据。"""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    question: str = Field(..., description="用户原始问题。")
-    standalone_query: str = Field(
+    tenant_id: int = Field(
         ...,
-        alias="standaloneQuery",
-        description="问题独立化结果。",
+        alias="tenantId",
     )
-    answer: str = Field(..., description="最终回答。")
-    model: str = Field(..., description="实际使用的模型。")
-    mode: str = Field(default="basic", description="回答模式。")
-    intent: str = Field(..., description="识别出的用户意图。")
-    need_rag: bool = Field(..., alias="needRag", description="是否执行了 RAG。")
+    user_id: int = Field(
+        ...,
+        alias="userId",
+    )
     knowledge_base_id: int | None = Field(
         default=None,
         alias="knowledgeBaseId",
-        description="实际查询的知识库 ID。",
-    )
-    route_reason: str | None = Field(
-        default=None,
-        alias="routeReason",
-        description="路由决策原因。",
-    )
-    citations: list[dict[str, Any]] = Field(
-        default_factory=list,
-        description="回答引用的文档分片。",
     )
     trace_id: int = Field(
         ...,
         alias="traceId",
     )
-
-    answer_status: AnswerStatus = Field(
+    request_id: str = Field(
         ...,
-        alias="answerStatus",
+        alias="requestId",
     )
+    model: str | None = None
 
+
+
+
+class ChatData(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    conversation_id: int = Field(alias="conversationId")
+    trace_id: int = Field(alias="traceId")
+    question: str
+    standalone_query: str = Field(alias="standaloneQuery")
+    answer: str
+    model: str
+    mode: str
+    intent: str
+    route: RouteDecision | None = None
+    need_rag: bool = Field(alias="needRag")
+    knowledge_base_id: int | None = Field(
+        default=None,
+        alias="knowledgeBaseId",
+    )
+    route_reason: str | None = Field(
+        default=None,
+        alias="routeReason",
+    )
+    citations: list[dict[str, Any]] = Field(
+        default_factory=list,
+    )
+    answer_status: AnswerStatus = Field(alias="answerStatus")
     used_citation_indexes: list[int] = Field(
         default_factory=list,
         alias="usedCitationIndexes",
     )
-
     invalid_citation_indexes: list[int] = Field(
         default_factory=list,
         alias="invalidCitationIndexes",
     )
-
     token_usage: TokenUsage = Field(
         default_factory=TokenUsage,
         alias="tokenUsage",
     )
-
-    trace: RagTraceData | None = Field(
-        default=None,
-        description="开发阶段返回的完整 Trace。",
-    )
-    route: dict[str, Any] | None = Field(
-        default=None,
-        description="本轮完整路由决策，Java 持久化供下轮继承。",
-    )
+    trace: RagTraceData | None = None
 class LlmResult(BaseModel):
     """LLM Client 的统一返回结果。"""
 
