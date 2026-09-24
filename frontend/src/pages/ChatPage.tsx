@@ -18,6 +18,7 @@ interface LiveMessage {
   role: 'USER' | 'ASSISTANT';
   content: string;
   citations?: unknown[];
+  status?: 'pending' | 'error';
 }
 
 interface ChatContext {
@@ -74,7 +75,11 @@ export function ChatPage() {
     async (text: string) => {
       if (!text.trim() || streaming) return;
       setQuestion('');
-      setLive((v) => [...v, { role: 'USER', content: text }, { role: 'ASSISTANT', content: '' }]);
+      setLive((v) => [
+        ...v,
+        { role: 'USER', content: text },
+        { role: 'ASSISTANT', content: '', status: 'pending' },
+      ]);
       setStreaming(true);
       abort.current = new AbortController();
       try {
@@ -85,7 +90,11 @@ export function ChatPage() {
             if (event === 'delta' || obj.type === 'delta') {
               const delta = String(obj.content ?? obj.delta ?? '');
               setLive((v) =>
-                v.map((m, i) => (i === v.length - 1 ? { ...m, content: m.content + delta } : m)),
+                v.map((m, i) =>
+                  i === v.length - 1
+                    ? { ...m, content: m.content + delta, status: 'pending' }
+                    : m,
+                ),
               );
             }
             if (event === 'final' || obj.type === 'final') {
@@ -100,7 +109,12 @@ export function ChatPage() {
               setLive((v) =>
                 v.map((m, i) =>
                   i === v.length - 1
-                    ? { ...m, content: answer || m.content, citations: Array.isArray(obj.citations) ? obj.citations : undefined }
+                    ? {
+                        ...m,
+                        content: answer || m.content,
+                        citations: Array.isArray(obj.citations) ? obj.citations : undefined,
+                        status: undefined,
+                      }
                     : m,
                 ),
               );
@@ -112,6 +126,14 @@ export function ChatPage() {
         void qc.invalidateQueries({ queryKey: ['conversations'] });
       } catch (e) {
         if (!abort.current.signal.aborted) message.error(e instanceof Error ? e.message : '生成失败');
+        setLive((v) =>
+          v.map((m, i) =>
+            i === v.length - 1 && m.role === 'ASSISTANT' && !m.content
+              ? { ...m, status: 'error' }
+              : m,
+          ),
+        );
+        abort.current.abort();
       } finally {
         setStreaming(false);
       }
@@ -218,7 +240,13 @@ export function ChatPage() {
               <div key={i} className={`message ${m.role.toLowerCase()}`}>
                 {m.role === 'USER' && <div className="message-role">你</div>}
                 <div className="message-body">
-                  {m.content ? <MarkdownRenderer content={m.content} /> : <Spin size="small" />}
+                  {m.content ? (
+                    <MarkdownRenderer content={m.content} />
+                  ) : m.status === 'error' ? (
+                    <Typography.Text type="danger">生成失败，请重试</Typography.Text>
+                  ) : (
+                    <Spin size="small" />
+                  )}
                   {m.citations && <div className="citations">引用来源 {m.citations.length} 条</div>}
                 </div>
               </div>

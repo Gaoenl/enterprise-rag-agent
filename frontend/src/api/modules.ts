@@ -214,11 +214,13 @@ export const streamChat = async (
         if (line.startsWith('data:')) data += line.slice(5).trim();
       }
       if (data) {
+        let parsed: unknown = data;
         try {
-          onEvent(event, parseJsonSafely(data));
+          parsed = parseJsonSafely(data);
         } catch {
-          onEvent(event, data);
+          // 非 JSON data 仍按原始文本交给调用方处理。
         }
+        onEvent(event, parsed);
       }
     }
   }
