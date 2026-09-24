@@ -100,6 +100,8 @@ npm run dev
 
 ## 📚 文档
 
+- [当前项目开发文档（架构、接口、配置、数据、测试与运维）](docs/development/README.md)
+- [面试问题与参考答案（当前实现版）](docs/development/17-interview-questions.md)
 - [系统总览与路线图](docs/system-overview-and-roadmap.md)
 - [架构流程图](docs/architecture-flowcharts.md)
 - [意图路由与知识库设计](docs/intent-routing-and-kb-domain-design.md)

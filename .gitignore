@@ -45,7 +45,9 @@ secrets/
 logs/
 
 # ── Docs (not code) ──
-docs/
+docs/*
+!docs/development/
+!docs/development/*.md
 
 # ── Data ──
 data/
