@@ -6,6 +6,8 @@ httpx==0.28.1
 python-dotenv==1.0.1
 langchain-openai
 langchain-core
+langgraph
+typing-extensions>=4.8
 jieba==0.42.1
 psycopg[binary,pool]
 SQLAlchemy>=2.0,<2.1

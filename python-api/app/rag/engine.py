@@ -15,8 +15,8 @@ retriever / rewriter / router 等内部组件。
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from typing import Any, Protocol
+from threading import Lock
+from typing import Any
 
 from langchain_core.documents import Document
 
@@ -42,6 +42,11 @@ from app.rag.router.knowledge_base_selector import (
     KnowledgeBaseSelector,
 )
 from app.rag.schemas.context_schema import PackedContext
+from app.rag.schemas.query_schema import (
+    RagPrepared,
+    RagQuery,
+    RagResult,
+)
 from app.rag.schemas.routing_schema import (
     L0Intent,
     ResolvedQuery,
@@ -57,68 +62,6 @@ from app.schemas.answer_schema import (
 )
 from app.schemas.chat_schema import ChatHistoryMessage
 from app.schemas.trace_schema import TokenUsage
-
-
-@dataclass
-class RagQuery:
-    """面向业务的 RAG 请求。"""
-
-    question: str
-    history: list[ChatHistoryMessage] = field(default_factory=list)
-    summary: str | None = None
-    tenant_id: int | None = None
-    user_id: int | None = None
-    knowledge_base_id: int | None = None
-    model: str | None = None
-    last_route: RouteDecision | None = None
-    tool_enabled: bool = True
-
-
-@dataclass
-class RagPrepared:
-    """prepare() 的输出：LLM 生成前已确定的所有上下文。"""
-
-    question: str
-    standalone_query: str
-    model: str
-    history: list[ChatHistoryMessage]
-    intent: str
-    need_rag: bool
-    knowledge_base_id: int | None = None
-    route: RouteDecision | None = None
-    route_reason: str | None = None
-    context: str = ""
-    documents: list[Document] = field(default_factory=list)
-    citations: list[dict[str, Any]] = field(default_factory=list)
-    candidate_count: int = 0
-    rerank_count: int = 0
-    context_document_count: int = 0
-    no_evidence: bool = False
-    clarification_answer: str | None = None
-    tool_result: str = ""
-
-
-@dataclass
-class RagResult:
-    """完整 RAG 问答结果。"""
-
-    answer: str
-    answer_status: AnswerStatus
-    intent: str
-    need_rag: bool
-    standalone_query: str = ""
-    model: str = ""
-    knowledge_base_id: int | None = None
-    citations: list[dict[str, Any]] = field(default_factory=list)
-    token_usage: TokenUsage = field(default_factory=TokenUsage)
-    route: RouteDecision | None = None
-    route_reason: str | None = None
-
-
-class BaseMemory(Protocol):
-    """会话记忆抽象（第一版由外部提供，预留 Python 侧实现）。"""
-
-    def load(self, session_id: str) -> dict[str, Any]: ...
 
 
 class RagEngine:
@@ -146,18 +89,9 @@ class RagEngine:
         self._answer_postprocessor = AnswerPostProcessor()
         self._embedding_client = EmbeddingClient()
 
-        # 可插拔组件
-        self._memory: BaseMemory | None = None
-        self._trace_recorder: TraceRecorder | None = None
-
-    # ── 可插拔组件注入 ──────────────────────────
-    def with_memory(self, memory: BaseMemory) -> "RagEngine":
-        self._memory = memory
-        return self
-
-    def with_trace(self, recorder: TraceRecorder) -> "RagEngine":
-        self._trace_recorder = recorder
-        return self
+        # Graph 模式按需创建；锁用于避免并发首请求重复编译图。
+        self._workflow: Any | None = None
+        self._workflow_lock = Lock()
 
     # ── 基础能力 ────────────────────────────────
     def embed(
@@ -333,6 +267,24 @@ class RagEngine:
         )
 
     def prepare(
+        self,
+        request: RagQuery,
+        recorder: TraceRecorder | None = None,
+    ) -> RagPrepared:
+        """按配置选择 legacy 或 LangGraph 编排。"""
+        if self._settings.rag_orchestrator == "graph":
+            # 首次进入 Graph 模式时才导入并编译，legacy 模式不加载 LangGraph。
+            with self._workflow_lock:
+                if self._workflow is None:
+                    from app.rag.workflow.runner import RagWorkflow
+
+                    self._workflow = RagWorkflow.from_engine(self)
+            return self._workflow.prepare(request, recorder)
+
+        # 默认路径保持原有实现，便于灰度回滚和结果对比。
+        return self._prepare_legacy(request, recorder)
+
+    def _prepare_legacy(
         self,
         request: RagQuery,
         recorder: TraceRecorder | None = None,
@@ -749,12 +701,11 @@ class RagEngine:
         input_summary: dict | None = None,
         recorder: TraceRecorder | None = None,
     ):
-        """Trace 节点上下文；未注入 recorder 时为空操作。"""
-        trace_recorder = recorder or self._trace_recorder
-        if trace_recorder is None:
+        """Trace 节点上下文；没有 recorder 时为空操作。"""
+        if recorder is None:
             yield None
             return
-        with trace_recorder.node(name, input_summary) as node:
+        with recorder.node(name, input_summary) as node:
             yield node
 
     @staticmethod

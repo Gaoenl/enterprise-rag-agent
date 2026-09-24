@@ -64,6 +64,8 @@ class RagSettings:
     rag_context_max_document_chars: int
     rag_empty_context_message: str
     rag_context_include_scores: bool
+    # 生成前编排实现：legacy 或 graph。
+    rag_orchestrator: str
 
     # ── 意图 ─────────────────────────────────────
     intent_weight_llm: float
@@ -170,6 +172,10 @@ class RagSettings:
             ),
             rag_context_include_scores=(
                 os.getenv("RAG_CONTEXT_INCLUDE_SCORES", "false").lower() == "true"
+            ),
+            rag_orchestrator=os.getenv(
+                "RAG_ORCHESTRATOR",
+                "legacy",
             ),
             intent_weight_llm=float(os.getenv("INTENT_WEIGHT_LLM", "0.7")),
             intent_weight_vector=float(os.getenv("INTENT_WEIGHT_VECTOR", "0.3")),
