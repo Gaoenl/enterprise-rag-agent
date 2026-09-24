@@ -39,6 +39,11 @@ def init_connection_pool() -> ConnectionPool:
             connect_timeout=(
                 settings.postgres_connect_timeout_seconds
             ),
+            application_name="enterprise-rag-python",
+            keepalives=1,
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=5,
         )
 
         pool = ConnectionPool(
@@ -46,6 +51,9 @@ def init_connection_pool() -> ConnectionPool:
             min_size=settings.postgres_pool_min_size,
             max_size=settings.postgres_pool_max_size,
             timeout=settings.postgres_pool_timeout_seconds,
+            check=ConnectionPool.check_connection,
+            max_idle=300,
+            max_lifetime=1800,
             open=False,
         )
 
