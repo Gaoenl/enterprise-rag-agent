@@ -15,6 +15,7 @@ public class PythonChatData {
      * 用户输入的原始问题。
      */
     private String question;
+    private Long conversationId;
 
     /**
      * 结合历史改写后的独立问题。

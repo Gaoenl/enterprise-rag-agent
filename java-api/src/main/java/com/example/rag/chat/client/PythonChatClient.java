@@ -1,7 +1,6 @@
 package com.example.rag.chat.client;
 
 import com.example.rag.chat.client.dto.PythonChatData;
-import com.example.rag.chat.client.dto.PythonChatHistoryMessage;
 import com.example.rag.chat.client.dto.PythonChatRequest;
 import com.example.rag.chat.client.dto.PythonChatResponse;
 import com.example.rag.chat.client.sse.PythonChatStreamSession;

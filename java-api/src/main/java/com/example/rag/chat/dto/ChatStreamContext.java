@@ -23,9 +23,6 @@ public class ChatStreamContext {
     /** 当前会话 ID。 */
     private Long conversationId;
 
-    /** 本轮用户消息 ID。 */
-    private Long userMessageId;
-
     /** 本轮 RAG Trace ID。 */
     private Long traceId;
 

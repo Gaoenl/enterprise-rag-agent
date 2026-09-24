@@ -2,7 +2,6 @@ package com.example.rag.trace.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.example.rag.chat.client.dto.PythonRagTraceData;
 import com.example.rag.common.api.PageResult;
 import com.example.rag.common.error.BaseErrorCode;
 import com.example.rag.common.error.ClientException;
@@ -24,9 +23,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-import com.example.rag.common.context.UserContext;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
@@ -34,12 +30,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.springframework.util.StringUtils;
-
-import java.util.List;
-
-import java.util.List;
-
 /**
  * RAG Trace 持久化服务实现。
  */
@@ -54,83 +44,6 @@ public class RagTraceServiceImpl implements RagTraceService {
     private final ObjectMapper objectMapper;
     private final CurrentUserProvider currentUserProvider;
 
-    @Override
-    @Transactional(
-            rollbackFor = Exception.class
-    )
-    public RagTrace saveSuccessTrace(
-            Long tenantId,
-            Long conversationId,
-            Long messageId,
-            PythonRagTraceData traceData
-    ) {
-        if (traceData == null || traceData.getTraceId() == null) {
-            log.warn("Python 未返回有效 Trace 数据，跳过 Trace 持久化");
-            return null;
-        }
-
-        RagTrace trace = RagTrace.builder()
-                .id(traceData.getTraceId())
-                .tenantId(tenantId)
-                .conversationId(conversationId)
-                .messageId(messageId)
-                .traceType(defaultString(traceData.getTraceType(), "CHAT_QA"))
-                .requestId(traceData.getRequestId())
-                .input(toJson(traceData.getInput(), "{}"))
-                .output(toJson(traceData.getOutput(), "{}"))
-                .nodes(toJson(traceData.getNodes(), "[]"))
-                .tokenUsage(toJson(traceData.getTokenUsage(), "{}"))
-                .degradedReasons(toJson(traceData.getDegradedReasons(), "[]"))
-                .startedAt(traceData.getStartedAt())
-                .finishedAt(traceData.getFinishedAt())
-                .latencyMs(traceData.getLatencyMs())
-                .status(defaultString(traceData.getStatus(), "SUCCESS"))
-                .errorMessage(limitError(traceData.getErrorMessage()))
-                .build();
-
-        traceMapper.insert(trace);
-
-        return trace;
-    }
-
-    @Override
-    @Transactional(
-            rollbackFor = Exception.class,
-            propagation = Propagation.REQUIRES_NEW
-    )
-    public RagTrace saveFailedTrace(
-            Long traceId,
-            Long tenantId,
-            String requestId,
-            Object input,
-            Throwable exception
-    ) {
-        RagTrace trace = RagTrace.builder()
-                .id(traceId)
-                .tenantId(tenantId)
-
-                // 失败时不绑定可能尚未提交的新会话，
-                // 避免 REQUIRES_NEW 事务发生外键错误。
-                .conversationId(null)
-                .messageId(null)
-
-                .traceType("CHAT_QA")
-                .requestId(requestId)
-                .input(toJson(input, "{}"))
-                .output("{}")
-                .nodes("[]")
-                .status("FAILED")
-                .errorMessage(limitError(
-                        exception == null
-                                ? "Unknown error"
-                                : exception.getMessage()
-                ))
-                .build();
-
-        traceMapper.insert(trace);
-
-        return trace;
-    }
     @Override
     public RagTraceResponse getTrace(Long traceId) {
         // Trace ID 不能为空。
@@ -195,50 +108,6 @@ public class RagTraceServiceImpl implements RagTraceService {
                 .toList();
     }
 
-    /**
-     * 将 Java 对象序列化为 JSONB 字符串。
-     */
-    private String toJson(Object value, String defaultJson) {
-        if (value == null) {
-            return defaultJson;
-        }
-
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
-            log.error("序列化 Trace JSON 失败", exception);
-            throw new RuntimeException("序列化 Trace JSON 失败", exception);  // ← 改这里
-        }
-    }
-
-    /**
-     * 防止错误信息无限增长。
-     */
-    private String limitError(String errorMessage) {
-        if (errorMessage == null) {
-            return null;
-        }
-
-        int maxLength = 2000;
-
-        if (errorMessage.length() <= maxLength) {
-            return errorMessage;
-        }
-
-        return errorMessage.substring(0, maxLength);
-    }
-
-    /**
-     * 字符串为空时使用默认值。
-     */
-    private String defaultString(
-            String value,
-            String defaultValue
-    ) {
-        return value == null || value.isBlank()
-                ? defaultValue
-                : value;
-    }
     /**
      * 将 Trace 实体转换为接口响应。
      */
