@@ -2,8 +2,6 @@
 
 from functools import lru_cache
 
-from langchain.chat_models import init_chat_model
-from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 
 from app.config import get_settings
@@ -16,6 +14,8 @@ def get_chat_model() -> ChatOpenAI:
 
     # DeepSeek 使用专用 ChatDeepSeek 客户端（init_chat_model 不支持 deepseek provider）。
     if settings.llm_provider == "deepseek":
+        from langchain_deepseek import ChatDeepSeek
+
         return ChatDeepSeek(
             model=settings.llm_model,
             api_key=settings.llm_api_key,
@@ -25,12 +25,13 @@ def get_chat_model() -> ChatOpenAI:
             max_retries=2,
         )
 
-    return init_chat_model(
+    return ChatOpenAI(
         model=settings.llm_model,
-        model_provider=settings.llm_provider,
         api_key=settings.llm_api_key,
         base_url=settings.llm_base_url,
         temperature=0,
+        timeout=settings.llm_timeout_seconds,
+        max_retries=2,
         extra_body={
             "thinking": {
                 "type": "disabled",
